@@ -1,19 +1,14 @@
 /**
  * ThrottleControls — on-screen throttle / brake / reverse control surface.
  *
- * This is the human control surface until step 7 adds keyboard input. It reads
- * the current reverse state from the snapshot and dispatches {@link TrainAction}
- * for throttle, brake, and reverse. Throttle and brake use range sliders (easy
- * with a mouse); the reverse control is a toggle.
- *
- * The component keeps local slider state and dispatches on every change. It is
- * only active in manual mode (App gates whether it is rendered / whether the
- * scripted driver also runs), so it never fights the demo script.
+ * The on-screen sliders and the keyboard share a single source of truth: the
+ * shell's {@link KeyboardController} control state. This component is fully
+ * *controlled* — it renders the current throttle / brake / reverse values and
+ * calls back to mutate the same state the keyboard writes. There is no local
+ * slider state, so a keyboard notch and a mouse drag never disagree.
  */
 
-import { useCallback, useState } from "react";
 import type { ReactNode } from "react";
-import { useGame } from "../useGame";
 
 /** A vertical labelled slider for throttle / brake. */
 function ControlSlider({
@@ -51,38 +46,29 @@ function ControlSlider({
 }
 
 interface ThrottleControlsProps {
-  /** Current reverse state (from the snapshot). */
+  /** Current throttle value, 0..1 (shared control state). */
+  throttle: number;
+  /** Current brake value, 0..1 (shared control state). */
+  brake: number;
+  /** Current reverse state (shared control state). */
   reverse: boolean;
+  /** Set the throttle (writes shared control state). */
+  onThrottle: (value: number) => void;
+  /** Set the brake (writes shared control state). */
+  onBrake: (value: number) => void;
+  /** Toggle reverse (writes shared control state + dispatches). */
+  onReverse: () => void;
 }
 
-/** Throttle/brake sliders + reverse toggle that dispatch TrainActions. */
+/** Throttle/brake sliders + reverse toggle backed by shared control state. */
 export function ThrottleControls({
+  throttle,
+  brake,
   reverse,
+  onThrottle,
+  onBrake,
+  onReverse,
 }: ThrottleControlsProps): ReactNode {
-  const { applyAction } = useGame();
-  const [throttle, setThrottle] = useState(0);
-  const [brake, setBrake] = useState(0);
-
-  const onThrottle = useCallback(
-    (v: number) => {
-      setThrottle(v);
-      applyAction({ throttle: v });
-    },
-    [applyAction],
-  );
-
-  const onBrake = useCallback(
-    (v: number) => {
-      setBrake(v);
-      applyAction({ brake: v });
-    },
-    [applyAction],
-  );
-
-  const onReverse = useCallback(() => {
-    applyAction({ reverse: !reverse });
-  }, [applyAction, reverse]);
-
   return (
     <div className="pointer-events-auto flex items-end gap-5 rounded-md border border-neutral-700/80 bg-neutral-900/85 px-4 py-3 shadow-lg backdrop-blur-sm">
       <ControlSlider

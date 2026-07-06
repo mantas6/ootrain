@@ -2,8 +2,8 @@
  * EndScreen — win/fail overlay shown when the run ends.
  *
  * Reads the snapshot's `runState` + `runEndReason` for the outcome, and shows
- * money earned and time used. Restart reloads the page for now (step 7 will own
- * a proper reset). Blocks interaction with the game beneath it.
+ * money earned and time used. Restart is handled by the shell (a fresh sim, no
+ * page reload). Blocks interaction with the game beneath it.
  */
 
 import type { ReactNode } from "react";
@@ -22,10 +22,12 @@ const REASON_TEXT: Record<RunEndReason, string> = {
 
 interface EndScreenProps {
   snapshot: GameSnapshot;
+  /** Start a fresh run (owned by the shell; no page reload). */
+  onRestart: () => void;
 }
 
 /** Win/fail overlay with outcome, stats, and a restart button. */
-export function EndScreen({ snapshot }: EndScreenProps): ReactNode {
+export function EndScreen({ snapshot, onRestart }: EndScreenProps): ReactNode {
   if (snapshot.runState === "running") return null;
   const won = snapshot.runState === "won";
   const timeUsed = RUN_TIME_LIMIT_S - snapshot.timeRemainingS;
@@ -71,7 +73,7 @@ export function EndScreen({ snapshot }: EndScreenProps): ReactNode {
 
         <button
           type="button"
-          onClick={() => window.location.reload()}
+          onClick={onRestart}
           className="w-full rounded-md border border-amber-500 bg-amber-500/20 px-4 py-2 font-mono text-sm font-bold tracking-widest text-amber-200 uppercase transition-colors hover:bg-amber-500/30"
         >
           Restart Run
