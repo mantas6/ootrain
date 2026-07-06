@@ -483,6 +483,7 @@ Audio asset reproducibility rule:
 | Data/config   | **TypeScript objects/modules**                                  | Route profile, stations, cargo jobs, locomotive stats, and upgrades stay type-safe in code    |
 | Save/progress | **localStorage**                                                | Confirmed save approach for browser prototype                                                 |
 | Lint/format   | **ESLint 9 (flat config) + typescript-eslint + Prettier**       | Type-aware linting for the simulation/physics core; Prettier owns formatting                  |
+| Testing       | **Vitest**                                                      | Fast, Vite-native unit tests for the decoupled simulation/physics core and data modules       |
 | Deployment    | Static web build via **GitHub Pages**                           | Free static hosting; deploy Vite build output through GitHub Actions                          |
 
 Asset direction:
@@ -558,6 +559,22 @@ The snapshot should expose enough state for automated testing:
 - win/fail state and reason
 
 This means rendering should consume simulation snapshots, not own the game rules.
+
+Testing direction:
+
+- Use **Vitest** as the test runner (Vite-native, TypeScript-first, fast watch mode).
+- Write tests primarily against the **decoupled simulation core**, not the Three.js rendering or React/DOM UI.
+- Tests should instantiate game state, apply `TrainAction`s, advance ticks, and assert on snapshots.
+- Priority coverage areas:
+  - Train physics: acceleration, braking, hill grade effects, weight impact.
+  - Temperature: heat rise/cooling thresholds and failure states.
+  - Traction / wheel slip: slip onset from grade, weight, throttle, and speed.
+  - Fire front: advance rate and catch/fail conditions.
+  - Data integrity: route, stations, cargo, locomotives, upgrades.
+  - Save/load: `localStorage` round-trip.
+- Keep tests deterministic: seed randomness and use fixed tick sizes.
+- Co-locate tests as `*.test.ts` next to the module under test, or under a `tests/` mirror of `src/`.
+- Add an `npm test` script and run tests in CI (GitHub Actions) before build/deploy.
 
 Suggested source structure:
 
