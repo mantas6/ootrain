@@ -73,33 +73,33 @@ Stations should feel like tactical decisions: stopping costs time, but skipping 
 
 Initial controls from the sketch:
 
-| Action | Purpose |
-|---|---|
-| Throttle | Increase engine power / acceleration |
-| Brake | Slow down or stop |
-| Reverse | Move backward or help maneuver at stations |
+| Action   | Purpose                                    |
+| -------- | ------------------------------------------ |
+| Throttle | Increase engine power / acceleration       |
+| Brake    | Slow down or stop                          |
+| Reverse  | Move backward or help maneuver at stations |
 
 Possible keyboard mapping later:
 
-| Key | Action |
-|---|---|
-| `W` / `↑` | Increase throttle |
-| `S` / `↓` | Decrease throttle / brake |
-| `Space` | Brake |
-| `R` | Toggle reverse |
-| `E` | Interact with station / cargo |
-| `Tab` | Zoom / UI focus, if needed |
+| Key       | Action                        |
+| --------- | ----------------------------- |
+| `W` / `↑` | Increase throttle             |
+| `S` / `↓` | Decrease throttle / brake     |
+| `Space`   | Brake                         |
+| `R`       | Toggle reverse                |
+| `E`       | Interact with station / cargo |
+| `Tab`     | Zoom / UI focus, if needed    |
 
 ## Main stats
 
-| Stat | Meaning |
-|---|---|
-| Fuel | Resource consumed by engine power |
-| Temperature | Rises under heavy throttle / climbing; overheating causes damage |
-| Speed | Current train velocity |
-| Weight | Locomotive + cargo mass; affects acceleration and hill climbing |
-| Damage / Wear | General condition of locomotive; repaired at stations |
-| Time | Countdown to failure; reach finish before zero |
+| Stat          | Meaning                                                          |
+| ------------- | ---------------------------------------------------------------- |
+| Fuel          | Resource consumed by engine power                                |
+| Temperature   | Rises under heavy throttle / climbing; overheating causes damage |
+| Speed         | Current train velocity                                           |
+| Weight        | Locomotive + cargo mass; affects acceleration and hill climbing  |
+| Damage / Wear | General condition of locomotive; repaired at stations            |
+| Time          | Countdown to failure; reach finish before zero                   |
 
 ## Failure / pressure systems
 
@@ -121,12 +121,12 @@ Engine temperature rises from:
 
 Temperature should have clear threshold states:
 
-| State | Meaning | Gameplay result |
-|---|---|---|
-| Safe | Normal operating range | Full control, no penalty |
-| Warning | Hot but still usable | UI warning, alarms, player can continue if careful |
-| Critical | Near maximum | Power may drop, damage/wear increases quickly, smoke/heat effects intensify |
-| Failure | Exceeds maximum temperature | Engine breaks / run fails unless a recovery mechanic is later added |
+| State    | Meaning                     | Gameplay result                                                             |
+| -------- | --------------------------- | --------------------------------------------------------------------------- |
+| Safe     | Normal operating range      | Full control, no penalty                                                    |
+| Warning  | Hot but still usable        | UI warning, alarms, player can continue if careful                          |
+| Critical | Near maximum                | Power may drop, damage/wear increases quickly, smoke/heat effects intensify |
+| Failure  | Exceeds maximum temperature | Engine breaks / run fails unless a recovery mechanic is later added         |
 
 If the player keeps pushing past the warning threshold, the locomotive can reach maximum temperature and effectively fail. The warning state should be readable enough that failure feels like the player's risk decision, not a surprise.
 
@@ -260,12 +260,12 @@ The main gameplay camera follows the train, but the player should be able to ins
 
 Suggested camera modes:
 
-| Mode | Purpose |
-|---|---|
-| Side follow | Default driving view |
-| Orbit inspect | Rotate around train to view from all sides |
-| Zoom close | Inspect loco/cargo/station details |
-| Zoom far | Read hills, train length, and upcoming obstacles |
+| Mode          | Purpose                                          |
+| ------------- | ------------------------------------------------ |
+| Side follow   | Default driving view                             |
+| Orbit inspect | Rotate around train to view from all sides       |
+| Zoom close    | Inspect loco/cargo/station details               |
+| Zoom far      | Read hills, train length, and upcoming obstacles |
 
 ## UI / HUD
 
@@ -470,19 +470,19 @@ Audio asset reproducibility rule:
 
 ## Technology stack
 
-| Area | Technology | Why |
-|---|---|---|
-| 3D rendering | **Three.js** | Stylized 2.5D/inspectable 3D train, terrain, stations, smoke/sparks/heat effects |
-| Language | **TypeScript** | Safer game systems and data structures |
-| Build tool | **Vite** | Fast local development and simple static web deployment |
-| Physics | **Custom route-based train physics** | Better fit than a full physics engine for one rail route |
-| UI/HUD | **HTML/CSS overlay with Tailwind CSS** | Gauges, station panels, warnings, map/menu screens live outside the canvas for easier styling |
-| Audio | **Web Audio API** | Engine hum, brakes, wheel slip, warning alarms, station ambience |
-| Assets | **Procedural Three.js geometry first; GLTF/GLB optional later** | Fast to prototype without Blender; detailed models can be added later if needed |
-| Modeling | **No Blender required for prototype** | Train/wagons/stations can be built from Three.js primitives and custom code first |
-| Data/config | **TypeScript objects/modules** | Route profile, stations, cargo jobs, locomotive stats, and upgrades stay type-safe in code |
-| Save/progress | **localStorage** | Confirmed save approach for browser prototype |
-| Deployment | Static web build | Easy to host anywhere |
+| Area          | Technology                                                      | Why                                                                                           |
+| ------------- | --------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| 3D rendering  | **Three.js**                                                    | Stylized 2.5D/inspectable 3D train, terrain, stations, smoke/sparks/heat effects              |
+| Language      | **TypeScript**                                                  | Safer game systems and data structures                                                        |
+| Build tool    | **Vite**                                                        | Fast local development and simple static web deployment                                       |
+| Physics       | **Custom route-based train physics**                            | Better fit than a full physics engine for one rail route                                      |
+| UI/HUD        | **HTML/CSS overlay with Tailwind CSS**                          | Gauges, station panels, warnings, map/menu screens live outside the canvas for easier styling |
+| Audio         | **Web Audio API**                                               | Engine hum, brakes, wheel slip, warning alarms, station ambience                              |
+| Assets        | **Procedural Three.js geometry first; GLTF/GLB optional later** | Fast to prototype without Blender; detailed models can be added later if needed               |
+| Modeling      | **No Blender required for prototype**                           | Train/wagons/stations can be built from Three.js primitives and custom code first             |
+| Data/config   | **TypeScript objects/modules**                                  | Route profile, stations, cargo jobs, locomotive stats, and upgrades stay type-safe in code    |
+| Save/progress | **localStorage**                                                | Confirmed save approach for browser prototype                                                 |
+| Deployment    | Static web build                                                | Easy to host anywhere                                                                         |
 
 Asset direction:
 
@@ -518,8 +518,8 @@ Suggested API shape:
 
 ```ts
 type TrainAction = {
-  throttle?: number;   // 0..1
-  brake?: number;      // 0..1
+  throttle?: number; // 0..1
+  brake?: number; // 0..1
   reverse?: boolean;
   interact?: boolean;
   acceptCargoId?: string;
@@ -609,31 +609,6 @@ src/
 - There is **no route map** and no branching path selection.
 - Any map-like UI should be a **linear progress strip**, not a route planner.
 
-## UI mockup artifact
-
-Generated Python/SVG/PNG mockup showing the main game view and HUD:
-
-- Script: `/var/lib/hermes/workspace/create_train_ui_mockup.py`
-- Image: `/var/lib/hermes/.hermes/cache/images/out_of_time_train_ui_mockup.png`
-- SVG source: `/var/lib/hermes/.hermes/cache/images/out_of_time_train_ui_mockup.svg`
-
-Generated Python/SVG/PNG mockup showing the illustrative island map/menu screen:
-
-- Script: `/var/lib/hermes/workspace/out-of-time-train/scripts/create_train_world_map_mockup.py`
-- Image: `/var/lib/hermes/workspace/out-of-time-train/images/out_of_time_train_world_map_mockup.png`
-- SVG source: `/var/lib/hermes/workspace/out-of-time-train/images/out_of_time_train_world_map_mockup.svg`
-
-Generated cleaner Python/SVG/PNG map mockup showing visible track through multiple cities/regions:
-
-- Script: `/var/lib/hermes/workspace/out-of-time-train/scripts/create_train_world_map_clean.py`
-- Image: `/var/lib/hermes/workspace/out-of-time-train/images/out_of_time_train_world_map_clean.png`
-- SVG source: `/var/lib/hermes/workspace/out-of-time-train/images/out_of_time_train_world_map_clean.svg`
-
-The main-view mockup uses a side-view train on an incline, top countdown/objective HUD, linear progress strip, station interaction panel, driver controls, gauges, and cargo/engine status.
-
-The map mockup uses a burning island escape story: start in burning lowlands, pass through living-world settlements/cities/industry/farms/tunnels/bridges, climb through dangerous terrain, and reach a rescue summit/radio tower.
-
 ## Update policy
 
 This file should be updated whenever the design changes or new details are added.
-
