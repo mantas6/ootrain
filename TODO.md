@@ -476,7 +476,7 @@ Audio asset reproducibility rule:
 | Language      | **TypeScript**                                                  | Safer game systems and data structures                                                        |
 | Build tool    | **Vite**                                                        | Fast local development and simple static web deployment                                       |
 | Physics       | **Custom route-based train physics**                            | Better fit than a full physics engine for one rail route                                      |
-| UI/HUD        | **HTML/CSS overlay with Tailwind CSS**                          | Gauges, station panels, warnings, map/menu screens live outside the canvas for easier styling |
+| UI/HUD        | **React with Tailwind CSS (DOM overlay)**                       | Gauges, station panels, warnings, map/menu screens live outside the canvas for easier styling |
 | Audio         | **Web Audio API**                                               | Engine hum, brakes, wheel slip, warning alarms, station ambience                              |
 | Assets        | **Procedural Three.js geometry first; GLTF/GLB optional later** | Fast to prototype without Blender; detailed models can be added later if needed               |
 | Modeling      | **No Blender required for prototype**                           | Train/wagons/stations can be built from Three.js primitives and custom code first             |
@@ -494,8 +494,9 @@ Asset direction:
 UI direction:
 
 - Three.js canvas is responsible for the 3D world only.
-- GUI/HUD elements should be normal DOM overlays styled with **Tailwind CSS**, not drawn inside the canvas.
+- GUI/HUD components should be built with **React** as normal DOM overlays styled with **Tailwind CSS**, not drawn inside the canvas.
 - This includes gauges, warnings, cargo/station menus, upgrade/repair panels, pause/menu screens, and map UI overlays.
+- React components should read from simulation snapshots and dispatch actions, keeping game rules out of the UI layer.
 - This keeps UI fast to build, readable, responsive, and easier to iterate.
 
 Code organization direction:
