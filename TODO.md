@@ -482,7 +482,8 @@ Audio asset reproducibility rule:
 | Modeling      | **No Blender required for prototype**                           | Train/wagons/stations can be built from Three.js primitives and custom code first             |
 | Data/config   | **TypeScript objects/modules**                                  | Route profile, stations, cargo jobs, locomotive stats, and upgrades stay type-safe in code    |
 | Save/progress | **localStorage**                                                | Confirmed save approach for browser prototype                                                 |
-| Deployment    | Static web build                                                | Easy to host anywhere                                                                         |
+| Lint/format   | **ESLint 9 (flat config) + typescript-eslint + Prettier**       | Type-aware linting for the simulation/physics core; Prettier owns formatting                  |
+| Deployment    | Static web build via **GitHub Pages**                           | Free static hosting; deploy Vite build output through GitHub Actions                          |
 
 Asset direction:
 
@@ -507,6 +508,13 @@ Code organization direction:
 - Avoid large monolithic files. If a file becomes long or mixes unrelated responsibilities, split it into smaller focused files.
 - Prefer reusable factory/components for procedural Three.js objects instead of one giant scene file.
 - A future agent/developer should be able to find and edit one object/system without reading the whole game.
+
+Lint / format direction:
+
+- **ESLint 9** with the new flat config (`eslint.config.js`).
+- **typescript-eslint** for type-aware linting; this is the priority for the simulation/physics core that automated tests rely on (`no-floating-promises`, `strict-boolean-expressions`, exhaustive `switch`, etc.).
+- **Prettier** handles formatting only, so ESLint isn't fighting it. Add `eslint-config-prettier` to disable stylistic ESLint rules.
+- **eslint-plugin-react-hooks** + **eslint-plugin-react-refresh** for the React DOM/HUD overlay and Vite HMR safety.
 
 Programmatic play / AI testing direction:
 
