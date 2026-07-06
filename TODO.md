@@ -621,3 +621,5 @@ src/
 ## Update policy
 
 This file should be updated whenever the design changes or new details are added.
+
+`AGENTS.md` is the working guide for agents/developers (tech stack, lint/format setup, architecture rules, conventions). It must be kept in sync with this plan — whenever decisions here change, update `AGENTS.md` accordingly.
