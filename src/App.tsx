@@ -24,6 +24,7 @@ import { WorldView } from "./render/WorldView";
 import { GameProvider, type GameProviderControls } from "./ui/GameProvider";
 import type { SimHandle } from "./ui/GameContextValue";
 import { Hud } from "./ui/hud/Hud";
+import { AudioEngine } from "./audio/audioEngine";
 
 /** Fixed simulation timestep, seconds. */
 const SIM_DT = 1 / 60;
@@ -36,6 +37,15 @@ export function App() {
   // The single sim instance, created once and shared with the HUD.
   const simRef = useRef(createGameSimulation({ seed: 7 }));
   const sim = simRef.current;
+
+  // The procedural audio layer. Created once; unlocked on first user gesture
+  // (browser autoplay policy) and fed snapshots from the loop below.
+  const audioRef = useRef<AudioEngine | null>(null);
+  audioRef.current ??= new AudioEngine();
+  const audio = audioRef.current;
+
+  // Mute state mirrored into React so the HUD button can reflect it.
+  const [muted, setMuted] = useState(false);
 
   // Manual mode gate. A ref mirrors state so the RAF loop reads it without
   // re-subscribing. Default OFF (auto / scripted).
@@ -57,8 +67,19 @@ export function App() {
 
     let simAccumulator = 0;
     let uiAccumulator = 0;
+    let audioAccumulator = 0;
     let lastTime = performance.now();
     let acceptedAtStation = new Set<string>();
+
+    // Unlock audio on the first user gesture (required by browser autoplay
+    // policy). Once unlocked the handlers detach themselves.
+    const unlockAudio = (): void => {
+      audio.unlock();
+      window.removeEventListener("pointerdown", unlockAudio);
+      window.removeEventListener("keydown", unlockAudio);
+    };
+    window.addEventListener("pointerdown", unlockAudio);
+    window.addEventListener("keydown", unlockAudio);
 
     // ⚠️ TEMPORARY scripted "driver" (step 7 removes this). Only runs in auto
     // mode; in manual mode the on-screen controls own throttle/brake/reverse.
@@ -95,6 +116,7 @@ export function App() {
       lastTime = now;
       simAccumulator += elapsed;
       uiAccumulator += elapsed;
+      audioAccumulator += elapsed;
 
       while (simAccumulator >= SIM_DT) {
         if (!manualRef.current) {
@@ -109,6 +131,13 @@ export function App() {
         uiAccumulator = 0;
         publishRef.current?.(sim.getSnapshot());
       }
+
+      // Drive the audio layer on the same modest cadence, passing the elapsed
+      // time so continuous sounds ramp smoothly and the brake heuristic works.
+      if (audioAccumulator >= UI_PUBLISH_DT) {
+        audio.update(sim.getSnapshot(), audioAccumulator);
+        audioAccumulator = 0;
+      }
     };
     stepSim();
 
@@ -117,10 +146,13 @@ export function App() {
 
     return () => {
       cancelAnimationFrame(simRaf);
+      window.removeEventListener("pointerdown", unlockAudio);
+      window.removeEventListener("keydown", unlockAudio);
+      audio.dispose();
       world.dispose();
       acceptedAtStation = new Set<string>();
     };
-  }, [sim]);
+  }, [sim, audio]);
 
   return (
     <div className="relative h-full w-full overflow-hidden">
@@ -137,6 +169,8 @@ export function App() {
         <Hud
           manualMode={manualMode}
           onToggleManual={() => setManualMode((m) => !m)}
+          muted={muted}
+          onToggleMute={() => setMuted(audio.toggleMuted())}
         />
       </GameProvider>
     </div>

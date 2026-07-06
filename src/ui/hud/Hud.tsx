@@ -27,6 +27,7 @@ import { MoneyDisplay } from "./MoneyDisplay";
 import { ThrottleControls } from "./ThrottleControls";
 import { ProgressStrip } from "./ProgressStrip";
 import { EndScreen } from "./EndScreen";
+import { MuteButton } from "./MuteButton";
 import { Panel } from "../components/Panel";
 import { WarningOverlay } from "../warnings/WarningOverlay";
 import { StationPanel } from "../station/StationPanel";
@@ -37,10 +38,19 @@ interface HudProps {
   manualMode: boolean;
   /** Toggles manual / scripted mode (owned by App for now). */
   onToggleManual: () => void;
+  /** Whether audio is muted (owned by App / the audio engine). */
+  muted: boolean;
+  /** Toggles audio mute. */
+  onToggleMute: () => void;
 }
 
 /** Composes the full HUD overlay from the current snapshot. */
-export function Hud({ manualMode, onToggleManual }: HudProps): ReactNode {
+export function Hud({
+  manualMode,
+  onToggleManual,
+  muted,
+  onToggleMute,
+}: HudProps): ReactNode {
   const { snapshot } = useGame();
   const [mapOpen, setMapOpen] = useState(false);
 
@@ -87,6 +97,7 @@ export function Hud({ manualMode, onToggleManual }: HudProps): ReactNode {
           >
             {manualMode ? "Manual" : "Auto"}
           </button>
+          <MuteButton muted={muted} onToggle={onToggleMute} />
         </div>
         <div className="flex gap-2">
           <MoneyDisplay money={snapshot.money} />
