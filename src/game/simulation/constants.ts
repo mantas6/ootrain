@@ -319,6 +319,37 @@ export const REFUEL_COST_PER_L = 0.15;
 /** Money cost to repair one full unit (0..1) of damage. */
 export const REPAIR_COST_PER_DAMAGE = 3_500;
 
+/**
+ * Money the player starts a run with.
+ *
+ * Lowered from the old 3_000 to restore early-game economic tension: 3_000 was
+ * enough for ~8 full loco-1 refuels up front, so fuel never bit early and the
+ * player coasted on the starting purse. 1_200 covers only a handful of refuels
+ * plus a small buffer, forcing the player to earn cargo money almost
+ * immediately instead of leaning on the starting balance.
+ *
+ * Affordability math (units: money) — the run stays winnable:
+ *   • Refuel price is REFUEL_COST_PER_L (0.15/L): a full loco-1 tank (2500 L)
+ *     costs 375, a full loco-2 tank (6000 L) costs 900. The player starts with
+ *     a FULL loco-1 tank, so the first refuel is only needed a couple of
+ *     stations in — after the first cargo payout has already landed.
+ *   • 1_200 = ~3 full loco-1 refuels of headroom (3 × 375 = 1_125), i.e. "a
+ *     couple of refuels and a little more". Enough to reach the first deliveries
+ *     without stranding the player, tight enough that fuel spend matters.
+ *   • Early cargo income (jobs picked up AND delivered before the repair depot
+ *     at x=7500, where loco-2 is sold): port-mail 800, port-fuel-drums 2_600,
+ *     lower-medical 1_400, cargo-yard-timber 2_200, tunnel-tools 1_100 ≈ 8_100
+ *     available, on top of higher-value finish-bound hauls (ore 6_400,
+ *     machinery 5_200, coal 4_000, rescue 3_800) that pay out at the summit.
+ *   • The loco-2 upgrade (LOCO_2.price = 14_000) is REQUIRED for the finale
+ *     climb (see the "Fuel" block above). It is bought from delivery income —
+ *     not from the starting purse — so trimming the starting money does not
+ *     gate the upgrade; it only removes the early free ride. The 14_000 price
+ *     and cargo rewards are unchanged, so the intended progression (haul cargo
+ *     → fund loco-2 → clear the summit) still holds.
+ */
+export const STARTING_MONEY = 1_200;
+
 // --- Timer / run ---------------------------------------------------------
 
 /** Total countdown time for the run, seconds (13-minute pressure window). */

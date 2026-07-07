@@ -42,6 +42,7 @@ import {
   ENGINE_LOW_SPEED_STRAIN_FRACTION,
   RUN_TIME_LIMIT_S,
   START_TEMP_C,
+  STARTING_MONEY,
   STATION_RANGE_M,
   STOP_EPSILON,
 } from "./simulation/constants";
@@ -148,7 +149,7 @@ export function createGameSimulation(config: GameConfig = {}): GameSimulation {
     locomotiveId,
     ownedUpgradeIds: [],
     cargo: [],
-    money: config.startingMoney ?? 3_000,
+    money: config.startingMoney ?? STARTING_MONEY,
     timeRemainingS: config.timeLimitS ?? RUN_TIME_LIMIT_S,
     input: { throttle: 0, brake: 0 },
     runState: "running",
