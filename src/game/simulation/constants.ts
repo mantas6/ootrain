@@ -100,6 +100,28 @@ export const COOLING_FULL_AIRFLOW_SPEED = 12;
  */
 export const CRITICAL_POWER_FACTOR = 0.78;
 
+/**
+ * Global thermal-response multiplier (dimensionless) applied to the *net* heat
+ * flow (heat-in minus heat-out) each temperature step. It effectively lowers the
+ * engine's thermal mass so temperature reacts noticeably faster to changes in
+ * load and airflow — both heating up under throttle and cooling down when the
+ * player eases off.
+ *
+ * Because it scales heat-in AND heat-out (including slip waste heat) by the same
+ * factor, the *steady-state* (equilibrium) temperature for any given load is
+ * unchanged — only the time constant shrinks (τ → τ / this). The overheat
+ * balance therefore stays intact: a full-throttle climb still trends to the same
+ * dangerous equilibrium and threatens failure, it just gets there sooner, and
+ * easing off recovers proportionally quicker.
+ *
+ * Raised from an implicit 1.0: the old model had a time constant of ~110 s for
+ * loco-1 (~2 min to approach equilibrium), which felt sluggish against the
+ * ~minutes-apart station pacing and the buffed physics. At 2.4 the response is
+ * ~2.4× faster (τ ≈ 46 s), so temperature tracks load changes within tens of
+ * seconds rather than minutes while keeping overheating meaningful.
+ */
+export const THERMAL_RESPONSE_MULTIPLIER = 2.4;
+
 // --- Traction ------------------------------------------------------------
 
 /**

@@ -84,7 +84,18 @@ export const LOCO_1: Locomotive = {
   // raw power ratio (≈0.0115 vs 0.013/1.18≈0.011) to keep loco-1 unable to
   // reach the repair depot from the port on one tank (see constants.ts "Fuel").
   fuelBurnRate: 0.0115, // L/(kW·s) — see constants.ts "Fuel" block
-  coolingRate: 0.9, // °C/s reference cooling
+  // Raised from 0.9 as part of the "less thermal inertia" retune (see
+  // constants.ts THERMAL_RESPONSE_MULTIPLIER). The global multiplier speeds the
+  // approach to equilibrium equally in both directions; bumping loco-1's cooling
+  // additionally lowers its full-throttle *flat-cruise* equilibrium from ~150 °C
+  // to ~121 °C (just above critical) so sustained flat flooring plateaus at the
+  // critical edge instead of driving to failure, while low-speed climbs (poor
+  // airflow) still push well past failure. This also keeps the temperature-
+  // sensitive fuel balance intact: time-to-critical on the flat stays late, so
+  // a throttle-managing driver doesn't gain enough economy to cross a no-refuel
+  // stretch that must force a refuel (see Game.test.ts fuel tests). loco-1 still
+  // runs hotter than loco-2 (equilibrium ~121 °C vs ~110 °C on the flat).
+  coolingRate: 1.15, // °C/s reference cooling
   heatGenerationFactor: 0.0009, // °C/(kW·s) — runs hotter under load
   price: 0, // owned from the start
 };

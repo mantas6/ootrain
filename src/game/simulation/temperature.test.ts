@@ -124,3 +124,96 @@ describe("temperature dynamics", () => {
     expect(damaged).toBeGreaterThan(clean);
   });
 });
+
+describe("temperature responsiveness", () => {
+  // These guard the "less thermal inertia" retune (THERMAL_RESPONSE_MULTIPLIER
+  // plus loco-1's higher coolingRate). The old model was sluggish: at full load
+  // loco-1 took ~99 s (moving) to reach the warning threshold and ~18 s to cool
+  // from critical back to safe. The retune makes temperature react ~2-3x faster
+  // in both directions while preserving the overheat mechanic.
+
+  /** Seconds of stepping from `start` until `pred(temp)` first holds. */
+  function secondsUntil(
+    input: TemperatureInput,
+    pred: (tempC: number) => boolean,
+  ): number {
+    let temp = input.tempC;
+    for (let i = 0; i < 60 * 600; i++) {
+      temp = stepTemperature({ ...input, tempC: temp }).tempC;
+      if (pred(temp)) return (i + 1) * DT;
+    }
+    return Number.POSITIVE_INFINITY;
+  }
+
+  it("heats to the warning threshold promptly under full load", () => {
+    // loco-1 at full power while moving (good airflow): reaches warning within a
+    // responsive window. Measured ~57 s (was ~99 s before the retune); the upper
+    // bound would fail if the responsiveness multiplier were reverted to 1.0.
+    const t = secondsUntil(
+      baseInput({
+        tempC: START_TEMP_C,
+        deliveredPowerKW: LOCO_1.maxPowerKW,
+        speedMagAbs: 20,
+      }),
+      (temp) => temp >= TEMP_WARNING_C,
+    );
+    expect(t).toBeGreaterThan(40);
+    expect(t).toBeLessThan(80);
+  });
+
+  it("heats faster at low speed (poor airflow) than while moving", () => {
+    const still = secondsUntil(
+      baseInput({
+        tempC: START_TEMP_C,
+        deliveredPowerKW: LOCO_1.maxPowerKW,
+        speedMagAbs: 0,
+      }),
+      (temp) => temp >= TEMP_WARNING_C,
+    );
+    const moving = secondsUntil(
+      baseInput({
+        tempC: START_TEMP_C,
+        deliveredPowerKW: LOCO_1.maxPowerKW,
+        speedMagAbs: 20,
+      }),
+      (temp) => temp >= TEMP_WARNING_C,
+    );
+    expect(still).toBeLessThan(moving);
+  });
+
+  it("cools from critical back to safe quickly when the throttle is eased", () => {
+    // Easing off (zero power) while moving sheds heat fast now: measured ~6 s
+    // from the critical threshold back below warning (was ~18 s). The upper
+    // bound guards against a regression to the old sluggish cooling.
+    const t = secondsUntil(
+      baseInput({
+        tempC: TEMP_CRITICAL_C,
+        deliveredPowerKW: 0,
+        speedMagAbs: 20,
+      }),
+      (temp) => temp < TEMP_WARNING_C,
+    );
+    expect(t).toBeGreaterThan(2);
+    expect(t).toBeLessThan(12);
+  });
+
+  it("cools slower at a standstill than while moving (airflow matters)", () => {
+    const still = secondsUntil(
+      baseInput({
+        tempC: TEMP_CRITICAL_C,
+        deliveredPowerKW: 0,
+        speedMagAbs: 0,
+      }),
+      (temp) => temp < TEMP_WARNING_C,
+    );
+    const moving = secondsUntil(
+      baseInput({
+        tempC: TEMP_CRITICAL_C,
+        deliveredPowerKW: 0,
+        speedMagAbs: 20,
+      }),
+      (temp) => temp < TEMP_WARNING_C,
+    );
+    expect(moving).toBeLessThan(still);
+  });
+});

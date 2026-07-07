@@ -25,6 +25,7 @@ import {
   TEMP_CRITICAL_C,
   TEMP_FAILURE_C,
   TEMP_WARNING_C,
+  THERMAL_RESPONSE_MULTIPLIER,
 } from "./constants";
 import type { TemperatureState } from "./types";
 
@@ -96,6 +97,11 @@ export interface TemperatureStepResult {
  * Heat in = deliveredPower * heatFactor * (1 + damagePenalty*damage) * dt
  *           + extraHeat.
  * Heat out = cooling(temp, airflow) * dt.
+ *
+ * The net flow (heatIn - heatOut) is scaled by THERMAL_RESPONSE_MULTIPLIER to
+ * lower the effective thermal mass: temperature reacts faster to load/airflow
+ * changes while the steady-state temperature is preserved (the multiplier hits
+ * heating and cooling equally). See constants.ts for the rationale.
  */
 export function stepTemperature(
   input: TemperatureInput,
@@ -115,7 +121,7 @@ export function stepTemperature(
   );
   const heatOut = cooling * input.dt;
 
-  let newTemp = input.tempC + heatIn - heatOut;
+  let newTemp = input.tempC + (heatIn - heatOut) * THERMAL_RESPONSE_MULTIPLIER;
   if (newTemp < AMBIENT_TEMP_C) {
     newTemp = AMBIENT_TEMP_C;
   }
