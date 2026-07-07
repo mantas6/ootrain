@@ -14,9 +14,9 @@
  *   - top-left: timer + gauges (speed / rpm / temp / fuel)
  *   - top-right: stat chips (money / weight / damage) + map, pause & mute
  *   - top-center: warning banners
- *   - bottom-center: throttle controls
- *   - bottom-full: progress strip
- *   - overlays: station panel (bottom-right), map screen, end screen
+ *   - bottom stack (never overlapping): throttle controls (centered) and the
+ *     station panel (right) sit in a row above the full-width progress strip
+ *   - overlays: map screen, end screen
  */
 
 import type { ReactNode } from "react";
@@ -140,29 +140,32 @@ export function Hud({
         <WarningOverlay snapshot={snapshot} />
       </div>
 
-      {/* Bottom-center: throttle / brake / reverse controls */}
-      <div className="absolute bottom-24 left-1/2 -translate-x-1/2">
-        <ThrottleControls
-          throttle={throttle}
-          brake={brake}
-          reverse={snapshot.reverse}
-          onThrottle={onThrottle}
-          onBrake={onBrake}
-          onReverse={onReverse}
-        />
-      </div>
+      {/* Bottom stack: interactive controls always sit above the full-width
+          route strip, so the strip (route map) can never overlap the
+          throttle/brake levers or the station panel at any viewport size. */}
+      <div className="absolute inset-x-3 bottom-3 flex flex-col gap-2">
+        {/* Row above the strip: throttle centered, station panel pinned right.
+            The station panel is absolutely positioned so it grows upward
+            without shifting the centered controls. */}
+        <div className="relative flex justify-center">
+          <ThrottleControls
+            throttle={throttle}
+            brake={brake}
+            reverse={snapshot.reverse}
+            onThrottle={onThrottle}
+            onBrake={onBrake}
+            onReverse={onReverse}
+          />
+          {snapshot.station.inRange && (
+            <div className="absolute right-0 bottom-0">
+              <StationPanel snapshot={snapshot} />
+            </div>
+          )}
+        </div>
 
-      {/* Bottom: progress strip */}
-      <div className="absolute right-3 bottom-3 left-3">
+        {/* Bottom: progress strip (full width). */}
         <ProgressStrip snapshot={snapshot} />
       </div>
-
-      {/* Station panel (above the strip, right side) */}
-      {snapshot.station.inRange && (
-        <div className="absolute right-3 bottom-24">
-          <StationPanel snapshot={snapshot} />
-        </div>
-      )}
 
       {/* Map overlay */}
       {mapOpen && <MapScreen snapshot={snapshot} onClose={onToggleMap} />}
