@@ -68,10 +68,12 @@ const REGION_STYLES: Record<RegionKind, RegionStyle> = {
     weights: [1, 1, 4, 1, 2, 2, 1],
     density: 6,
   },
+  // Forest belt: trees dominate the mix and the tile carries roughly triple
+  // the decoration slots so the canopy reads as woodland, not scattered stragglers.
   mountain: {
     ground: PALETTE.grassDim,
-    weights: [4, 3, 4, 2, 1, 1, 1],
-    density: 8,
+    weights: [8, 3, 4, 2, 1, 1, 1],
+    density: 16,
   },
   summit: { ground: PALETTE.rock, weights: [2, 2, 4, 3, 2, 1, 1], density: 6 },
 };
