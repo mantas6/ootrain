@@ -239,18 +239,14 @@ export class TrainView {
     }
 
     // --- Effects ---
-    // Smoke load from throttle proxy: use speed + slip + temperature as a stand
-    // in for engine load (the snapshot doesn't expose throttle directly, but a
-    // hot, slipping, or accelerating engine is working hard). Clamp to 0..1.
-    const tempLoad = clamp01(
-      (snapshot.temperatureC - 40) / (TEMP_CRITICAL_C - 40),
-    );
-    const smokeLoad = clamp01(0.25 + tempLoad * 0.75);
-    // Emit smoke from the stack, transformed to world space.
+    // Smoke is driven by engine RPM (fuel-gated, smoothly spooled toward the
+    // throttle target), so the plume answers the throttle directly instead of
+    // the old temperature/speed/slip load proxy. Emit from the stack top,
+    // transformed to world space.
     this.tmpVec.set(this.loco.stackLocalX, this.loco.stackLocalY, 0);
     this.loco.group.localToWorld(this.tmpVec);
     this.smoke.setEmitPosition(this.tmpVec.x, this.tmpVec.y, this.tmpVec.z);
-    this.smoke.update(smokeLoad, dt);
+    this.smoke.update(snapshot.engineRpm, dt);
 
     // Sparks: only while slipping or braking hard at speed.
     const slipping = snapshot.tractionState === "slipping";

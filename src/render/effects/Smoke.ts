@@ -3,13 +3,16 @@
  *
  * A small pool of billboarded sprite-like puffs (flat planes always facing the
  * camera would need a camera ref; instead we use cheap upward-drifting quads
- * whose colour darkens with engine load). Puffs are emitted at a rate that
- * scales with throttle/power and rise + fade over a short lifetime. The pool is
+ * whose colour darkens with engine load). Puffs are emitted at a rate, size,
+ * rise speed, opacity, and darkness that all scale with the engine's RPM (see
+ * {@link smokeEmissionParams}), so the plume visibly answers the throttle:
+ * sparse/faint/pale at idle, dense/dark/fast under full power. The pool is
  * fixed-size so there are no per-frame allocations.
  *
  * The emitter world-position is set each frame by the caller (the stack top,
- * transformed into world space). Colour goes from pale grey at idle to near
- * black under heavy load, matching a straining diesel.
+ * transformed into world space). Scatter uses `Math.random()` like the other
+ * one-shot particle effects (Sparks); it is a purely cosmetic layer with no
+ * bearing on sim determinism.
  */
 
 import {
@@ -22,6 +25,7 @@ import {
   Vector3,
 } from "three";
 import { PALETTE } from "../palette";
+import { smokeEmissionParams, type SmokeEmissionParams } from "./smokeParams";
 
 interface Puff {
   mesh: Mesh;
@@ -30,6 +34,10 @@ interface Puff {
   life: number;
   velocity: Vector3;
   active: boolean;
+  /** Puff scale at spawn; growth is applied relative to this. */
+  baseScale: number;
+  /** Peak opacity this puff fades toward, from the emission params. */
+  peakOpacity: number;
 }
 
 const MAX_PUFFS = 40;
@@ -70,6 +78,8 @@ export class Smoke {
         life: 1,
         velocity: new Vector3(),
         active: false,
+        baseScale: 1,
+        peakOpacity: 0.75,
       });
     }
   }
@@ -79,7 +89,7 @@ export class Smoke {
     this.emitPos.set(x, y, z);
   }
 
-  private spawn(load: number): void {
+  private spawn(params: SmokeEmissionParams): void {
     const puff = this.puffs.find((p) => !p.active);
     if (!puff) return;
     puff.active = true;
@@ -87,33 +97,37 @@ export class Smoke {
     puff.life = 1.4 + Math.random() * 1.2;
     puff.mesh.visible = true;
     puff.mesh.position.copy(this.emitPos);
-    // Rise + slight backward drift (train moves +X, smoke trails −X).
+    // Rise + slight backward drift (train moves +X, smoke trails −X). Rise
+    // speed scales with engine load so hard-working smoke shoots up faster.
     puff.velocity.set(
       -1.5 - Math.random() * 1.5,
-      2.2 + Math.random() * 1.4,
+      params.riseSpeed + Math.random() * 1.2,
       (Math.random() - 0.5) * 0.6,
     );
-    const startScale = 0.7 + Math.random() * 0.5;
-    puff.mesh.scale.setScalar(startScale);
+    puff.baseScale = params.spawnScale * (0.85 + Math.random() * 0.4);
+    puff.peakOpacity = params.opacity;
+    puff.mesh.scale.setScalar(puff.baseScale);
     // Darker under load.
-    this.tmpColor.copy(this.lightColor).lerp(this.darkColor, load);
+    this.tmpColor.copy(this.lightColor).lerp(this.darkColor, params.darkness);
     puff.material.color.copy(this.tmpColor);
   }
 
   /**
-   * Advances the smoke. `load` (0..1) scales emission rate and darkness; `dt`
-   * seconds. `cameraQuat`-free billboarding: puffs simply keep their default
-   * orientation (facing +Z, the camera's default side view) which reads fine in
-   * the near-side-on camera. Callers may pass a face target via
-   * {@link faceCamera} if they want stricter billboarding.
+   * Advances the smoke, driven by the engine's RPM. Emission rate, puff size,
+   * rise speed, colour darkness, and opacity all follow
+   * {@link smokeEmissionParams}, so low RPM reads as sparse/faint smoke and
+   * high RPM as a dense/dark plume. `dt` seconds. `cameraQuat`-free
+   * billboarding: puffs keep their default orientation (facing +Z, the
+   * camera's default side view) which reads fine in the near-side-on camera.
+   * Callers may pass a face target via {@link faceCamera} for stricter
+   * billboarding.
    */
-  update(load: number, dt: number): void {
-    // Emission: 0 puffs/s at idle up to ~18/s at full load.
-    const rate = 2 + load * 16;
-    this.emitAccumulator += rate * dt;
+  update(engineRpm: number, dt: number): void {
+    const params = smokeEmissionParams(engineRpm);
+    this.emitAccumulator += params.rate * dt;
     while (this.emitAccumulator >= 1) {
       this.emitAccumulator -= 1;
-      this.spawn(load);
+      this.spawn(params);
     }
 
     for (const puff of this.puffs) {
@@ -129,10 +143,11 @@ export class Smoke {
       puff.mesh.position.addScaledVector(puff.velocity, dt);
       // Slow the rise over time (buoyancy fading).
       puff.velocity.multiplyScalar(1 - 0.6 * dt);
-      const scale = 0.8 + t * 3.2;
-      puff.mesh.scale.setScalar(scale);
-      // Fade in fast, out slow.
-      puff.material.opacity = Math.min(1, t * 4) * (1 - t) * 0.75;
+      // Grow from the spawn size so denser (bigger) puffs stay proportionally
+      // larger through their life.
+      puff.mesh.scale.setScalar(puff.baseScale * (1 + t * 3));
+      // Fade in fast, out slow, scaled by the puff's load-driven peak opacity.
+      puff.material.opacity = Math.min(1, t * 4) * (1 - t) * puff.peakOpacity;
     }
   }
 
