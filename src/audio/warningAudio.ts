@@ -7,8 +7,8 @@
  * a stuck tone: changing state simply changes the next beep.
  *
  * Alarm tiers (highest priority first):
- *   - temperature "critical": fast, harsh two-tone alarm,
- *   - temperature "warning": slower single warning beep,
+ *   - temperature "critical": urgent two-tone alarm (softened triangle timbre),
+ *   - temperature "warning": gentle single sine beep — noticeable, not nagging,
  *   - low fuel: distinct low "ping",
  *   - low time: a short high "tick".
  *
@@ -35,6 +35,12 @@ export interface AlarmSpec {
   gain: number;
   /** Two-tone (harsh) vs single tone. */
   twoTone: boolean;
+  /** Oscillator timbre — sine/triangle are softer than square. */
+  waveform: OscillatorType;
+  /** Beep length, seconds. */
+  dur: number;
+  /** Envelope attack, seconds (longer = gentler, less clicky onset). */
+  attack: number;
 }
 
 /**
@@ -47,19 +53,25 @@ export function selectAlarm(snapshot: GameSnapshot): AlarmSpec | null {
   if (snapshot.temperatureState === "critical") {
     return {
       kind: "critical",
-      interval: 0.32,
+      interval: 0.5,
       freq: 880,
-      gain: 0.2,
+      gain: 0.12,
       twoTone: true,
+      waveform: "triangle",
+      dur: 0.1,
+      attack: 0.01,
     };
   }
   if (snapshot.temperatureState === "warning") {
     return {
       kind: "warning",
-      interval: 0.9,
-      freq: 620,
-      gain: 0.15,
+      interval: 1.6,
+      freq: 560,
+      gain: 0.07,
       twoTone: false,
+      waveform: "sine",
+      dur: 0.14,
+      attack: 0.02,
     };
   }
 
@@ -72,6 +84,9 @@ export function selectAlarm(snapshot: GameSnapshot): AlarmSpec | null {
       freq: 300,
       gain: 0.13,
       twoTone: false,
+      waveform: "square",
+      dur: 0.12,
+      attack: 0.005,
     };
   }
 
@@ -82,6 +97,9 @@ export function selectAlarm(snapshot: GameSnapshot): AlarmSpec | null {
       freq: 1200,
       gain: 0.1,
       twoTone: false,
+      waveform: "square",
+      dur: 0.12,
+      attack: 0.005,
     };
   }
 
@@ -127,20 +145,20 @@ export class WarningAudio {
   /** Emits one short beep (or a two-tone pair for critical). */
   private playBeep(alarm: AlarmSpec): void {
     const now = this.ctx.currentTime;
-    this.tone(now, alarm.freq, alarm.gain, 0.12);
+    this.tone(now, alarm.freq, alarm.gain, alarm);
     if (alarm.twoTone) {
-      this.tone(now + 0.14, alarm.freq * 0.75, alarm.gain, 0.12);
+      this.tone(now + alarm.dur + 0.02, alarm.freq * 0.75, alarm.gain, alarm);
     }
   }
 
-  private tone(at: number, freq: number, peak: number, dur: number): void {
+  private tone(at: number, freq: number, peak: number, alarm: AlarmSpec): void {
     const osc = this.ctx.createOscillator();
-    osc.type = "square";
+    osc.type = alarm.waveform;
     osc.frequency.value = freq;
     const gain = this.ctx.createGain();
     osc.connect(gain);
     gain.connect(this.destination);
-    const end = playEnvelope(gain.gain, at, peak, 0.005, dur);
+    const end = playEnvelope(gain.gain, at, peak, alarm.attack, alarm.dur);
     osc.start(at);
     osc.stop(end + 0.05);
     osc.onended = () => {
