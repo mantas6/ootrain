@@ -1,7 +1,7 @@
 /**
  * Station definitions along the single forward route.
  *
- * Seven stations (TODO.md) act as tactical stops: stopping costs time but
+ * Seven stations (docs/02-gameplay.md) act as tactical stops: stopping costs time but
  * offers cargo, repairs, refuel, and upgrades. Stations are positioned by world
  * X (metres) and must all fall within the route bounds (see {@link
  * ROUTE_LENGTH_M}). The mid-game locomotive upgrade (loco-2) is sold at a

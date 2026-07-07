@@ -3,7 +3,7 @@
  *
  * These describe the internal mutable sim state slices consumed by the pure
  * per-system functions, and the read-only {@link GameSnapshot} the sim exposes
- * to rendering / UI / tests. The snapshot exposes everything TODO.md lists:
+ * to rendering / UI / tests. The snapshot exposes everything docs/07-tech.md lists:
  * position, speed, grade, fuel, temperature + state, traction/slip, damage,
  * cargo, money, station proximity + interactions, fire front + distance, timer,
  * and win/fail state + reason.

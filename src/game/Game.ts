@@ -1,7 +1,7 @@
 /**
  * Game simulation core — `createGameSimulation`.
  *
- * Implements the API shape from TODO.md:
+ * Implements the API shape from docs/07-tech.md:
  *   const sim = createGameSimulation(config?);
  *   sim.applyAction({ throttle: 0.7 });
  *   sim.tick(1 / 60);
@@ -438,7 +438,7 @@ export function createGameSimulation(config: GameConfig = {}): GameSimulation {
     // low speed under heavy load still draws substantial power (and runs hot)
     // even though little of it becomes forward motion. We therefore floor the
     // engine draw at a fraction of the throttle-commanded engine power. This is
-    // the "low speed under heavy load, poor cooling" heat source from TODO.md.
+    // the "low speed under heavy load, poor cooling" heat source from docs/03-pressure-systems.md.
     const surfaceSpeed = Math.max(speedMag, 2);
     const mechanicalPowerKW = (traction.effectiveEffortN * surfaceSpeed) / 1000;
     const strainFloorKW =

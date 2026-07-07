@@ -2,7 +2,7 @@
  * Reusable settlement / industrial prop factories.
  *
  * Houses, sheds, power poles, crates, fences, and smoke stacks that dress the
- * world around the track so it feels lived-in (TODO.md terrain-detail rules).
+ * world around the track so it feels lived-in (docs/05-camera-ui.md terrain-detail rules).
  * All built from primitives with shared cached materials. A `burned` flag on
  * buildings swaps to scorched/collapsed colours.
  *

@@ -120,7 +120,7 @@ export interface ScatterItem {
  * Deterministically scatters `count` decoration slots across a chunk.
  *
  * Items are pushed away from the track corridor (|z| >= `clearZ`) on a
- * seeded-random side so the rails stay readable (TODO.md rule). The result is a
+ * seeded-random side so the rails stay readable (docs/05-camera-ui.md rule). The result is a
  * pure function of `(chunkIndex, count, chunkSize, clearZ, maxZ, seedSalt)`, so
  * identical inputs always yield an identical layout.
  */

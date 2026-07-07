@@ -1,7 +1,7 @@
 /**
  * Wear / damage accumulation and repair.
  *
- * Damage grows from four sources (TODO.md): overheating (critical temperature
+ * Damage grows from four sources (docs/03-pressure-systems.md): overheating (critical temperature
  * band), wheel slip abuse (handled in traction.ts, folded into wheel damage
  * here), harsh braking (heavy brake at speed), and overloading (train far
  * heavier than the loco is rated for). Damage worsens heat generation and caps

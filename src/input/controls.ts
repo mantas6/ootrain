@@ -14,7 +14,7 @@
  *     mutable control state the on-screen sliders read/write, so keyboard and UI
  *     stay a single source of truth.
  *
- * Key map (per TODO.md "Controls", extended):
+ * Key map (per docs/02-gameplay.md "Controls", extended):
  *
  *   | Key            | Action                                    |
  *   | -------------- | ----------------------------------------- |

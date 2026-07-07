@@ -1,7 +1,7 @@
 /**
  * Locomotive definitions.
  *
- * Two locomotives per TODO.md:
+ * Two locomotives per docs/04-cargo-locomotives.md:
  *  - `loco-1` — diesel-electric starter: balanced, lower power, better fuel
  *    economy, weaker on steep hills / heavy cargo.
  *  - `loco-2` — diesel-hydraulic upgrade: more power and tractive effort,

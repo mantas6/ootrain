@@ -6,7 +6,7 @@
  * accumulated damage. It falls via passive cooling that scales with airflow
  * (speed): at a standstill only a fraction of the loco's cooling capacity is
  * available, so working hard at low speed under heavy load overheats fastest
- * (the "low speed poor cooling" penalty from TODO.md).
+ * (the "low speed poor cooling" penalty from docs/03-pressure-systems.md).
  *
  * Threshold states (constants in constants.ts):
  *   - safe:     below warning

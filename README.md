@@ -94,7 +94,7 @@ src/
 
 ## Documentation
 
-- [TODO.md](./TODO.md) — full game design.
+- [docs/](./docs/README.md) — full game design spec.
 - [AGENTS.md](./AGENTS.md) — contributor / agent working guide.
 
 ## Continuous integration

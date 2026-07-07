@@ -1,6 +1,6 @@
 # AGENTS.md — Out of Time Train (OOTRAIN)
 
-Working guide for agents/developers. Read `TODO.md` for the full game design;
+Working guide for agents/developers. Read `docs/` for the full game design spec;
 keep this file in sync with it whenever decisions change.
 
 ## Tech stack
@@ -95,4 +95,4 @@ deploys `dist/` to GitHub Pages from `main`.
   fields, exports). Don't rely on memory of what "should" exist — a prior
   agent claimed `.github/workflows/ci.yml` was missing when it existed.
 - SI units everywhere in sim/data; comment the unit on every stat field.
-- Update `TODO.md` and this file together when design decisions change.
+- Update `docs/` and this file together when design decisions change.

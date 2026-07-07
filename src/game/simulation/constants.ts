@@ -80,7 +80,7 @@ export const COOLING_IDLE_FRACTION = 0.35;
 /**
  * Speed (m/s) at which airflow-assisted cooling reaches its full contribution.
  * Below this, poor airflow means the engine sheds heat less effectively — the
- * "low speed under heavy load" penalty from TODO.md.
+ * "low speed under heavy load" penalty from docs/03-pressure-systems.md.
  */
 export const COOLING_FULL_AIRFLOW_SPEED = 12;
 
@@ -194,7 +194,7 @@ export const IDLE_FUEL_BURN_L_PER_S = 0.02;
 /**
  * Fraction of throttle-commanded engine power the engine still draws (as a
  * floor) when straining at low speed, even though little becomes forward
- * motion. This is what makes "low speed under heavy load" run hot per TODO.md.
+ * motion. This is what makes "low speed under heavy load" run hot per docs/03-pressure-systems.md.
  */
 export const ENGINE_LOW_SPEED_STRAIN_FRACTION = 0.7;
 

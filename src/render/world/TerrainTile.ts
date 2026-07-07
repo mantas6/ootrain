@@ -6,7 +6,7 @@
  * One tile maps 1:1 to a world chunk (same width/index as a track chunk). The
  * scatter is seeded from the chunk index so a tile looks identical every time
  * it streams in, and props are kept clear of the track corridor so the rails
- * stay readable (TODO.md rule).
+ * stay readable (docs/05-camera-ui.md rule).
  *
  * A tile can be built as a `burned` variant (scorched ground colour, bare
  * trees, blackened buildings) — {@link WorldView} rebuilds a tile in the burned

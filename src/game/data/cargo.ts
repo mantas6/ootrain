@@ -1,7 +1,7 @@
 /**
  * Cargo job definitions.
  *
- * Cargo is temptation (TODO.md design pillar 3): heavier jobs pay more but add
+ * Cargo is temptation (docs/01-overview.md design pillar 3): heavier jobs pay more but add
  * weight, braking distance, heat, and traction risk. Jobs span light/heavy and
  * low/high pay across origin stations so the player faces real tradeoffs.
  *

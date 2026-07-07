@@ -8,7 +8,7 @@
  * summit).
  *
  * ## Length / duration justification
- * Target session is 10–15 minutes (TODO.md). Diesel road/rail freight cruises
+ * Target session is 10–15 minutes (docs/01-overview.md). Diesel road/rail freight cruises
  * roughly in the 40–90 km/h band; with hills, station stops, and traction
  * limits an *average* effective speed of ~55–65 km/h (~15–18 m/s) is
  * plausible for this arcade sim. Over ~12.5 minutes (750 s) that yields:

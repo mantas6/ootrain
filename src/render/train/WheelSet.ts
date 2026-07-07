@@ -5,7 +5,7 @@
  * visible crank pin so rotation reads clearly. The group is built once and
  * spun each frame by {@link WheelSet.update}, which advances the roll angle
  * from ground speed and over-rotates during wheel slip so the player can see
- * the wheels spinning faster than the train is moving (TODO.md traction cue).
+ * the wheels spinning faster than the train is moving (docs/03-pressure-systems.md traction cue).
  *
  * Wheels are laid across Z (the axle runs left↔right in the side view) and roll
  * about that Z axis as the train moves along X.
