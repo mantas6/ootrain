@@ -1,22 +1,57 @@
 import { describe, expect, it } from "vitest";
 
 import { createGameSimulation } from "./Game";
-import { FINISH_POSITION_X } from "./data/stations";
+import { FINISH_POSITION_X, STATIONS } from "./data/stations";
 import { LOCO_2 } from "./data/locomotives";
-import { ENGINE_IDLE_RPM, ENGINE_MAX_RPM } from "./simulation/constants";
+import {
+  ENGINE_IDLE_RPM,
+  ENGINE_MAX_RPM,
+  STATION_RANGE_M,
+} from "./simulation/constants";
 
 const DT = 1 / 30;
 
-/** Drives forward, easing throttle when hot, until the run ends or n ticks. */
+/** Stations that sell fuel, in route order. */
+const REFUEL_STATIONS = STATIONS.filter((st) => st.services.refuel);
+
+/**
+ * Drives forward at full throttle (easing when hot) and manages fuel like a
+ * real playthrough. Fuel is now a real constraint (see constants.ts "Fuel"), so
+ * a naive full-throttle dash runs dry: this harness "pit-stops" at every refuel
+ * station it reaches to top up, and buys the loco-2 upgrade at the repair depot
+ * because loco-1's tank cannot clear the final climb on its own.
+ *
+ * The pit-stop is modelled by zeroing speed when the train is physically within
+ * a station's range (no teleporting — every metre is still driven) and issuing
+ * the station actions in the same tick, so stops add fuel/restart cost without
+ * adding dwell time.
+ */
 function autoDrive(
   sim: ReturnType<typeof createGameSimulation>,
   maxTicks: number,
 ): void {
+  const serviced = new Set<string>();
+  let boughtLoco2 = false;
   for (let i = 0; i < maxTicks; i++) {
     const s = sim.getSnapshot();
     if (s.runState !== "running") return;
+
+    // Pit-stop at each refuel station as we reach it (once).
+    for (const station of REFUEL_STATIONS) {
+      if (serviced.has(station.id)) continue;
+      if (Math.abs(station.positionX - s.positionX) > STATION_RANGE_M) continue;
+      sim.getState().physics.speed = 0; // come to a stop at the platform
+      if (station.id === "station-repair-depot" && !boughtLoco2) {
+        sim.applyAction({ buyUpgradeId: "upgrade-loco-2" });
+        boughtLoco2 = sim.getSnapshot().locomotiveId === "loco-2";
+      }
+      sim.applyAction({ refuel: true });
+      serviced.add(station.id);
+    }
+
+    const cur = sim.getSnapshot();
     const hot =
-      s.temperatureState === "warning" || s.temperatureState === "critical";
+      cur.temperatureState === "warning" || cur.temperatureState === "critical";
     sim.applyAction({ throttle: hot ? 0.5 : 1, brake: 0 });
     sim.tick(DT);
   }
@@ -77,14 +112,19 @@ describe("engine RPM", () => {
 });
 
 describe("happy-path mini-run", () => {
-  it("reaches the finish and wins before the timer/fire", () => {
-    const sim = createGameSimulation({ seed: 1 });
+  it("reaches the finish and wins with fuel management + the loco-2 upgrade", () => {
+    // Enough money to buy loco-2 (required for the final climb — see the fuel
+    // balance below) and pay for refuels along the way.
+    const sim = createGameSimulation({ seed: 1, startingMoney: 30_000 });
     autoDrive(sim, 30 * 800);
     const s = sim.getSnapshot();
     expect(s.runState).toBe("won");
     expect(s.runEndReason).toBe("reached-finish");
     expect(s.positionX).toBeGreaterThanOrEqual(FINISH_POSITION_X);
     expect(s.timeRemainingS).toBeGreaterThan(0);
+    // The starter loco cannot make the summit climb on one tank; a winning run
+    // must have upgraded to loco-2 (see constants.ts "Fuel").
+    expect(s.locomotiveId).toBe("loco-2");
   });
 });
 
@@ -363,5 +403,74 @@ describe("balance: loco-2 outperforms loco-1 on the steep late grade", () => {
     expect(loco2.minSpeed).toBeGreaterThan(loco1.minSpeed);
     expect(loco2.crested).toBe(true);
     expect(loco1.crested).toBe(false);
+  });
+});
+
+describe("balance: fuel matters and paces refuelling", () => {
+  // Refuelling requires stopping, so the sizing case is "cross the next
+  // no-refuel stretch from a standstill at full throttle" (see constants.ts
+  // "Fuel"). Measured engine work from a standstill, full throttle:
+  //   loco-1 cargo-yard(3600)->repair-depot(7500), 3900 m: ~151,800 kW·s
+  //          -> ~1973 L @0.013 ~ 79% of the 2500 L tank (crossable, tight).
+  //   loco-1 bridge(8400)->summit(12900) FINALE, 4500 m: ~247,100 kW·s
+  //          -> ~3213 L @0.013 > 2500 L tank (impossible -> forces loco-2).
+  //   loco-2 bridge->summit FINALE: ~320,400 kW·s -> ~4485 L @0.014 ~ 75% of
+  //          the 6000 L tank (crossable with headroom).
+
+  /** Runs full throttle from a standstill at `fromX`; returns the snapshot at
+   *  `toX` (reached) or when the tank runs dry / the run ends. */
+  function driveFrom(
+    locoId: string,
+    fromX: number,
+    toX: number,
+  ): ReturnType<ReturnType<typeof createGameSimulation>["getSnapshot"]> {
+    const sim = createGameSimulation({ seed: 1, locomotiveId: locoId });
+    const st = sim.getState();
+    st.physics.positionX = fromX;
+    st.physics.speed = 0;
+    st.fire.positionX = -1_000_000; // isolate fuel from the fire for this test
+    for (let i = 0; i < 30 * 400; i++) {
+      const s = sim.getSnapshot();
+      if (s.positionX >= toX || s.runState !== "running" || s.fuelLitres <= 0) {
+        return s;
+      }
+      const hot =
+        s.temperatureState === "critical" || s.temperatureState === "failure";
+      sim.applyAction({ throttle: hot ? 0.6 : 1, brake: 0 });
+      sim.tick(DT);
+    }
+    return sim.getSnapshot();
+  }
+
+  it("a full loco-1 tank is a real, limited resource (empties within ~2-3 gaps)", () => {
+    // From a fresh fill at the port, a full-throttle dash runs dry well before
+    // reaching the repair depot 7100 m away — i.e. the player must refuel every
+    // couple of stations, not once per run as before the retune.
+    const s = driveFrom("loco-1", 400, 7500);
+    expect(s.positionX).toBeLessThan(7500); // did NOT reach the depot on one tank
+    expect(s.fuelLitres).toBeLessThanOrEqual(0); // it was fuel that stopped it
+    // But it clears at least the first ~2 station gaps (past the cargo yard),
+    // so the cadence is "roughly every other station", not "every gap".
+    expect(s.positionX).toBeGreaterThan(3600);
+  });
+
+  it("loco-1 can just cross its longest no-refuel stretch (cargo->depot)", () => {
+    const s = driveFrom("loco-1", 3600, 7500);
+    expect(s.positionX).toBeGreaterThanOrEqual(7500);
+    expect(s.fuelLitres).toBeGreaterThan(0);
+    // Tight: it arrives with only a modest reserve (~a fifth of the tank).
+    expect(s.fuelLitres).toBeLessThan(0.4 * s.fuelCapacity);
+  });
+
+  it("loco-1 cannot make the final climb on one tank (forces the upgrade)", () => {
+    const s = driveFrom("loco-1", 8400, 12900);
+    expect(s.positionX).toBeLessThan(12900);
+    expect(s.fuelLitres).toBeLessThanOrEqual(0);
+  });
+
+  it("loco-2 clears the final climb on one tank with headroom", () => {
+    const s = driveFrom("loco-2", 8400, 12900);
+    expect(s.positionX).toBeGreaterThanOrEqual(12900);
+    expect(s.fuelLitres).toBeGreaterThan(0.1 * s.fuelCapacity);
   });
 });

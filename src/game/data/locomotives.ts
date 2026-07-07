@@ -70,7 +70,7 @@ export const LOCO_1: Locomotive = {
   maxPowerKW: 1_100, // kW
   maxTractiveEffortN: 240_000, // N
   fuelCapacity: 2_500, // L
-  fuelBurnRate: 0.00006, // L/(kW·s) — thriftier engine
+  fuelBurnRate: 0.013, // L/(kW·s) — see constants.ts "Fuel" block
   coolingRate: 0.9, // °C/s reference cooling
   heatGenerationFactor: 0.0009, // °C/(kW·s) — runs hotter under load
   price: 0, // owned from the start
@@ -87,8 +87,8 @@ export const LOCO_2: Locomotive = {
   mass: 108_000, // kg (~108 t — heavier)
   maxPowerKW: 1_800, // kW — more power
   maxTractiveEffortN: 360_000, // N — more tractive effort
-  fuelCapacity: 3_000, // L
-  fuelBurnRate: 0.00009, // L/(kW·s) — thirstier
+  fuelCapacity: 6_000, // L — big tank; must clear the finale (see constants.ts)
+  fuelBurnRate: 0.014, // L/(kW·s) — thirstier per unit work than loco-1
   coolingRate: 1.4, // °C/s — better cooling
   heatGenerationFactor: 0.0006, // °C/(kW·s) — runs cooler under load
   price: 14_000, // money units — significant investment
