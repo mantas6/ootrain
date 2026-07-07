@@ -11,7 +11,7 @@
  * P / Esc keys stay in sync with the on-screen buttons.
  *
  * Layout:
- *   - top-left: timer + gauges (speed / temp / fuel)
+ *   - top-left: timer + gauges (speed / rpm / temp / fuel)
  *   - top-right: stat chips (money / weight / damage) + map, pause & mute
  *   - top-center: warning banners
  *   - bottom-center: throttle controls
@@ -23,6 +23,7 @@ import type { ReactNode } from "react";
 import { useGame } from "../useGame";
 import { TimerDisplay } from "./TimerDisplay";
 import { SpeedGauge } from "./SpeedGauge";
+import { RpmGauge } from "./RpmGauge";
 import { TemperatureGauge } from "./TemperatureGauge";
 import { FuelGauge } from "./FuelGauge";
 import { WeightIndicator } from "./WeightIndicator";
@@ -82,6 +83,7 @@ export function Hud({
         <Panel>
           <div className="flex flex-col gap-2.5">
             <SpeedGauge speed={snapshot.speed} reverse={snapshot.reverse} />
+            <RpmGauge engineRpm={snapshot.engineRpm} />
             <TemperatureGauge
               temperatureC={snapshot.temperatureC}
               temperatureState={snapshot.temperatureState}

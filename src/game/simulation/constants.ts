@@ -198,6 +198,28 @@ export const IDLE_FUEL_BURN_L_PER_S = 0.02;
  */
 export const ENGINE_LOW_SPEED_STRAIN_FRACTION = 0.7;
 
+// --- Engine RPM ----------------------------------------------------------
+
+/**
+ * Engine crankshaft speed at idle (throttle 0), revolutions per minute (RPM).
+ * The engine never drops below this while running.
+ */
+export const ENGINE_IDLE_RPM = 600;
+
+/**
+ * Engine crankshaft speed at full throttle, revolutions per minute (RPM).
+ * Target RPM interpolates linearly between idle and this with throttle.
+ */
+export const ENGINE_MAX_RPM = 2_200;
+
+/**
+ * First-order spool rate of the engine RPM toward its throttle target, 1/s.
+ * RPM approaches the target as `1 - exp(-rate * dt)`, giving a time constant of
+ * ~1/rate seconds. Higher = snappier throttle response; lower = more lag. Tuned
+ * so the engine audibly spools without feeling sluggish (~0.4 s time constant).
+ */
+export const ENGINE_RPM_RESPONSE_RATE = 2.5;
+
 // --- Economy -------------------------------------------------------------
 
 /** Money cost to fully refuel one full tank, per litre. */

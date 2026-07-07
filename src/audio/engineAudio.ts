@@ -8,62 +8,46 @@
  *   - a low-pass filtered noise layer for combustion "grit",
  *   - a shared master gain, all routed to the destination the caller provides.
  *
- * Pitch and loudness follow an estimated **engine load**. The snapshot does not
- * expose throttle directly, so {@link estimateEngineLoad} derives a proxy from
- * temperature-above-ambient, grade demand and speed — heat and climbing both
- * imply the engine is working. Load maps to frequency/gain via pure curves
- * ({@link loadToFrequency}, {@link loadToGain}) that are unit tested.
+ * Pitch and loudness follow the engine's **RPM**, read straight from the
+ * snapshot's `engineRpm` field (the sim owns the throttle→RPM spool model).
+ * RPM normalises to 0..1 across the idle→max band ({@link rpmToFraction}) and
+ * maps to frequency/gain via pure curves ({@link rpmToFrequency},
+ * {@link rpmToGain}) that are unit tested. This replaces the old
+ * temperature/grade/speed load proxy that inferred pitch indirectly.
  *
  * Damage roughens the sound: it deepens noise grit and adds pitch wobble via a
  * slow LFO on the fundamental so a beaten engine sounds ragged.
  */
 
 import type { GameSnapshot } from "../game/simulation/types";
+import { ENGINE_IDLE_RPM, ENGINE_MAX_RPM } from "../game/simulation/constants";
 import { createLoopingNoise, rampTo, rampGainTo } from "./noise";
 
-/** Idle fundamental, Hz (engine at rest). */
+/** Idle fundamental, Hz (engine at idle RPM). */
 const IDLE_FREQ = 42;
-/** Fundamental at full load, Hz. */
+/** Fundamental at max RPM, Hz. */
 const FULL_FREQ = 96;
 /** Master engine gain at idle (quiet — engine sits under alarms). */
 const IDLE_GAIN = 0.05;
-/** Master engine gain at full load. */
+/** Master engine gain at max RPM. */
 const FULL_GAIN = 0.16;
-/** Speed (m/s) at which the speed contribution to load saturates. */
-const LOAD_SPEED_FULL = 30;
-/** Approximate ambient temperature, °C (load baseline). */
-const AMBIENT_C = 20;
-/** Temperature above ambient (°C) that reads as "working hard". */
-const LOAD_TEMP_SPAN = 90;
 
 /**
- * Estimates engine load in 0..1 from a snapshot (pure, testable).
- *
- * Blends three proxies for "how hard the engine is working":
- *   - heat above ambient (sustained power → heat),
- *   - uphill grade demand (climbing needs power),
- *   - speed (fast running keeps the engine spun up).
- * Slip also implies wasted full power, so it pins load high.
+ * Normalises an RPM value to 0..1 across the idle→max band (pure, testable).
+ * Idle RPM maps to 0, max RPM to 1; values are clamped to the band.
  */
-export function estimateEngineLoad(snapshot: GameSnapshot): number {
-  const heat = clamp01((snapshot.temperatureC - AMBIENT_C) / LOAD_TEMP_SPAN);
-  const gradeDemand = clamp01(snapshot.grade / 0.06); // steep climb ≈ full
-  const speedTerm = clamp01(Math.abs(snapshot.speed) / LOAD_SPEED_FULL);
-  const slipTerm = snapshot.tractionState === "slipping" ? 0.85 : 0;
-
-  // Weighted blend; heat dominates because it is the persistent load signal.
-  const blended = 0.45 * heat + 0.3 * gradeDemand + 0.25 * speedTerm;
-  return clamp01(Math.max(blended, slipTerm));
+export function rpmToFraction(rpm: number): number {
+  return clamp01((rpm - ENGINE_IDLE_RPM) / (ENGINE_MAX_RPM - ENGINE_IDLE_RPM));
 }
 
-/** Maps load 0..1 to the fundamental frequency in Hz (pure, testable). */
-export function loadToFrequency(load: number): number {
-  return IDLE_FREQ + (FULL_FREQ - IDLE_FREQ) * clamp01(load);
+/** Maps engine RPM to the fundamental frequency in Hz (pure, testable). */
+export function rpmToFrequency(rpm: number): number {
+  return IDLE_FREQ + (FULL_FREQ - IDLE_FREQ) * rpmToFraction(rpm);
 }
 
-/** Maps load 0..1 to the engine master gain (pure, testable). */
-export function loadToGain(load: number): number {
-  return IDLE_GAIN + (FULL_GAIN - IDLE_GAIN) * clamp01(load);
+/** Maps engine RPM to the engine master gain (pure, testable). */
+export function rpmToGain(rpm: number): number {
+  return IDLE_GAIN + (FULL_GAIN - IDLE_GAIN) * rpmToFraction(rpm);
 }
 
 function clamp01(v: number): number {
@@ -138,17 +122,17 @@ export class EngineAudio {
   /** Reacts to a fresh snapshot. Called from the engine's update fan-out. */
   update(snapshot: GameSnapshot): void {
     const now = this.ctx.currentTime;
-    const load = estimateEngineLoad(snapshot);
-    const freq = loadToFrequency(load);
-    const gain = loadToGain(load);
+    const rev = rpmToFraction(snapshot.engineRpm);
+    const freq = rpmToFrequency(snapshot.engineRpm);
+    const gain = rpmToGain(snapshot.engineRpm);
 
-    // Smooth ramps — no clicks even on abrupt load jumps.
+    // Smooth ramps — no clicks even on abrupt RPM jumps.
     rampTo(this.osc1.frequency, freq, now, 0.15);
     rampTo(this.osc2.frequency, freq * 2, now, 0.15);
     rampGainTo(this.master, gain, now, 0.2);
 
-    // High load opens the grit filter and lifts the noise layer (strain).
-    const strain = clamp01((load - 0.6) / 0.4);
+    // High RPM opens the grit filter and lifts the noise layer (strain).
+    const strain = clamp01((rev - 0.6) / 0.4);
     rampTo(this.noiseFilter.frequency, 320 + strain * 900, now, 0.2);
     rampGainTo(this.noiseGain, 0.08 + strain * 0.12, now, 0.2);
 

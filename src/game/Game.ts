@@ -38,12 +38,14 @@ import {
 } from "./data";
 import {
   DEFAULT_SEED,
+  ENGINE_IDLE_RPM,
   ENGINE_LOW_SPEED_STRAIN_FRACTION,
   RUN_TIME_LIMIT_S,
   START_TEMP_C,
   STATION_RANGE_M,
   STOP_EPSILON,
 } from "./simulation/constants";
+import { stepEngineRpm } from "./simulation/engineRpm";
 import {
   distanceToFire,
   isCaughtByFire,
@@ -141,6 +143,7 @@ export function createGameSimulation(config: GameConfig = {}): GameSimulation {
     fuel: {
       litres: (getLocomotiveById(locomotiveId) ?? LOCO_1).fuelCapacity,
     },
+    engine: { rpm: ENGINE_IDLE_RPM },
     fire: { positionX: -600, elapsedS: 0 },
     locomotiveId,
     ownedUpgradeIds: [],
@@ -389,6 +392,11 @@ export function createGameSimulation(config: GameConfig = {}): GameSimulation {
       thermalPowerFactor(tempState) * damagePowerFactor(state.wear.damage);
     const fuelAvailable = !isEmpty(state.fuel.litres);
     const throttle = fuelAvailable ? state.input.throttle : 0;
+
+    // --- Engine RPM (throttle-driven, first-order spool lag) ---
+    // Uses the fuel-gated throttle so a dry tank lets the engine fall to idle.
+    state.engine.rpm = stepEngineRpm(state.engine.rpm, throttle, dt);
+
     const availPowerKW = loco.maxPowerKW * powerFactor;
     const availPowerW = availPowerKW * 1000;
 
@@ -607,6 +615,7 @@ export function createGameSimulation(config: GameConfig = {}): GameSimulation {
       fuelCapacity: loco.fuelCapacity,
       temperatureC: state.thermal.tempC,
       temperatureState: classifyTemperature(state.thermal.tempC),
+      engineRpm: state.engine.rpm,
       tractionState: state.traction.state,
       slipRatio: state.traction.slipRatio,
       damage: state.wear.damage,

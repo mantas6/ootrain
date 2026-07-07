@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { createGameSimulation } from "./Game";
 import { FINISH_POSITION_X } from "./data/stations";
 import { LOCO_2 } from "./data/locomotives";
+import { ENGINE_IDLE_RPM, ENGINE_MAX_RPM } from "./simulation/constants";
 
 const DT = 1 / 30;
 
@@ -41,6 +42,37 @@ describe("createGameSimulation basics", () => {
     const s = sim.getSnapshot();
     expect(s.speed).toBeGreaterThan(1);
     expect(s.positionX).toBeGreaterThan(0);
+  });
+});
+
+describe("engine RPM", () => {
+  it("starts at idle in the initial snapshot", () => {
+    const sim = createGameSimulation({ seed: 1 });
+    expect(sim.getSnapshot().engineRpm).toBe(ENGINE_IDLE_RPM);
+  });
+
+  it("rises toward the max target when the throttle opens", () => {
+    const sim = createGameSimulation({ seed: 1 });
+    sim.applyAction({ throttle: 1 });
+    sim.tick(DT);
+    const afterOneTick = sim.getSnapshot().engineRpm;
+    // Spooling: above idle but not instantly at max.
+    expect(afterOneTick).toBeGreaterThan(ENGINE_IDLE_RPM);
+    expect(afterOneTick).toBeLessThan(ENGINE_MAX_RPM);
+    for (let i = 0; i < 300; i++) sim.tick(DT);
+    expect(sim.getSnapshot().engineRpm).toBeGreaterThan(ENGINE_MAX_RPM - 5);
+  });
+
+  it("falls back toward idle when the throttle closes", () => {
+    const sim = createGameSimulation({ seed: 1 });
+    sim.applyAction({ throttle: 1 });
+    for (let i = 0; i < 300; i++) sim.tick(DT);
+    const revved = sim.getSnapshot().engineRpm;
+    expect(revved).toBeGreaterThan(ENGINE_MAX_RPM - 5);
+
+    sim.applyAction({ throttle: 0 });
+    for (let i = 0; i < 600; i++) sim.tick(DT);
+    expect(sim.getSnapshot().engineRpm).toBeCloseTo(ENGINE_IDLE_RPM, 0);
   });
 });
 

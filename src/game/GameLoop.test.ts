@@ -14,6 +14,7 @@ function fakeSnapshot(): GameSnapshot {
     fuelCapacity: 0,
     temperatureC: 0,
     temperatureState: "safe",
+    engineRpm: 600,
     tractionState: "gripping",
     slipRatio: 0,
     damage: 0,

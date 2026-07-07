@@ -98,6 +98,12 @@ export interface FuelState {
   litres: number;
 }
 
+/** Engine (rotational) state slice. */
+export interface EngineState {
+  /** Crankshaft speed, revolutions per minute (RPM). */
+  rpm: number;
+}
+
 /** Fire-front state slice. */
 export interface FireState {
   /** Fire-front world X position, metres. */
@@ -113,6 +119,7 @@ export interface SimState {
   traction: TractionSlice;
   wear: WearState;
   fuel: FuelState;
+  engine: EngineState;
   fire: FireState;
 
   /** Active locomotive id (references `locomotives.ts`). */
@@ -186,6 +193,9 @@ export interface GameSnapshot {
   temperatureC: number;
   /** Temperature threshold state. */
   temperatureState: TemperatureState;
+
+  /** Engine crankshaft speed, revolutions per minute (RPM). */
+  engineRpm: number;
 
   /** Wheel-slip state. */
   tractionState: TractionState;

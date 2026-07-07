@@ -5,7 +5,8 @@
 
 import { describe, it, expect } from "vitest";
 import type { GameSnapshot } from "../game/simulation/types";
-import { estimateEngineLoad, loadToFrequency, loadToGain } from "./engineAudio";
+import { rpmToFraction, rpmToFrequency, rpmToGain } from "./engineAudio";
+import { ENGINE_IDLE_RPM, ENGINE_MAX_RPM } from "../game/simulation/constants";
 import { speedToClickRate, speedToClatterGain } from "./wheelAudio";
 import { isBrakingHeuristic } from "./brakeAudio";
 import { slipToGain } from "./slipAudio";
@@ -24,6 +25,7 @@ function makeSnapshot(overrides: Partial<GameSnapshot> = {}): GameSnapshot {
     fuelCapacity: 2500,
     temperatureC: 20,
     temperatureState: "safe",
+    engineRpm: ENGINE_IDLE_RPM,
     tractionState: "gripping",
     slipRatio: 0,
     damage: 0,
@@ -50,38 +52,24 @@ function makeSnapshot(overrides: Partial<GameSnapshot> = {}): GameSnapshot {
   };
 }
 
-describe("engine load mapping", () => {
-  it("is 0 at rest and safe temperature", () => {
-    expect(estimateEngineLoad(makeSnapshot())).toBeCloseTo(0, 5);
+describe("engine RPM mapping", () => {
+  it("normalises idle RPM to 0 and max RPM to 1", () => {
+    expect(rpmToFraction(ENGINE_IDLE_RPM)).toBeCloseTo(0, 5);
+    expect(rpmToFraction(ENGINE_MAX_RPM)).toBeCloseTo(1, 5);
   });
 
-  it("rises with heat, grade and speed", () => {
-    const hot = estimateEngineLoad(
-      makeSnapshot({ temperatureC: 110, grade: 0.06, speed: 30 }),
+  it("clamps RPM outside the idle→max band to 0..1", () => {
+    expect(rpmToFraction(ENGINE_IDLE_RPM - 500)).toBe(0);
+    expect(rpmToFraction(ENGINE_MAX_RPM + 500)).toBe(1);
+  });
+
+  it("frequency and gain increase monotonically with RPM", () => {
+    expect(rpmToFrequency(ENGINE_IDLE_RPM)).toBeLessThan(
+      rpmToFrequency(ENGINE_MAX_RPM),
     );
-    expect(hot).toBeGreaterThan(0.8);
-  });
-
-  it("pins high while slipping regardless of other inputs", () => {
-    const load = estimateEngineLoad(
-      makeSnapshot({ tractionState: "slipping", slipRatio: 1.5 }),
-    );
-    expect(load).toBeGreaterThanOrEqual(0.85);
-  });
-
-  it("clamps to 0..1", () => {
-    const load = estimateEngineLoad(
-      makeSnapshot({ temperatureC: 999, grade: 1, speed: 999 }),
-    );
-    expect(load).toBeLessThanOrEqual(1);
-    expect(load).toBeGreaterThanOrEqual(0);
-  });
-
-  it("frequency and gain increase monotonically with load", () => {
-    expect(loadToFrequency(0)).toBeLessThan(loadToFrequency(1));
-    expect(loadToGain(0)).toBeLessThan(loadToGain(1));
+    expect(rpmToGain(ENGINE_IDLE_RPM)).toBeLessThan(rpmToGain(ENGINE_MAX_RPM));
     // Idle is quieter than full — engine sits under the alarms.
-    expect(loadToGain(0)).toBeLessThan(0.1);
+    expect(rpmToGain(ENGINE_IDLE_RPM)).toBeLessThan(0.1);
   });
 });
 
