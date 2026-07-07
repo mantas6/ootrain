@@ -67,10 +67,23 @@ export const LOCO_1: Locomotive = {
     "Reliable diesel-electric starter. Balanced and economical, but " +
     "underpowered on steep climbs with heavy cargo.",
   mass: 90_000, // kg (~90 t bare loco)
-  maxPowerKW: 1_100, // kW
-  maxTractiveEffortN: 240_000, // N
+  // Raised from 1100 kW to buff acceleration in the power-limited region (above
+  // the low-speed grip cap, tractive effort = power / speed, so this is what
+  // makes the train pull harder up to cruise). fuelBurnRate is cut in step
+  // below so per-tank WORK — and thus the whole fuel/refuel balance — is held.
+  maxPowerKW: 1_300, // kW
+  // Raised from 240 kN to buff low-speed acceleration (launch is effort/grip
+  // limited, not power limited). Kept just above the bare-loco adhesion grip
+  // (~291 kN at BASE_ADHESION_COEFF) so a hard launch still bites the rail and
+  // slip stays possible.
+  maxTractiveEffortN: 300_000, // N
   fuelCapacity: 2_500, // L
-  fuelBurnRate: 0.013, // L/(kW·s) — see constants.ts "Fuel" block
+  // Cut from 0.013 in step with the +18% power bump so per-tank WORK — and thus
+  // the whole fuel/refuel balance — is held. Snappier acceleration shaves a
+  // little low-speed strain-floor time, so the cut is slightly less than the
+  // raw power ratio (≈0.0115 vs 0.013/1.18≈0.011) to keep loco-1 unable to
+  // reach the repair depot from the port on one tank (see constants.ts "Fuel").
+  fuelBurnRate: 0.0115, // L/(kW·s) — see constants.ts "Fuel" block
   coolingRate: 0.9, // °C/s reference cooling
   heatGenerationFactor: 0.0009, // °C/(kW·s) — runs hotter under load
   price: 0, // owned from the start
@@ -85,10 +98,16 @@ export const LOCO_2: Locomotive = {
     "and stays cooler under load — at the cost of thirstier fuel use and a " +
     "significant purchase price.",
   mass: 108_000, // kg (~108 t — heavier)
-  maxPowerKW: 1_800, // kW — more power
-  maxTractiveEffortN: 360_000, // N — more tractive effort
+  maxPowerKW: 2_100, // kW — more power (buffed from 1800 for snappier accel)
+  // Raised from 360 kN in step with loco-1's effort buff and the higher
+  // adhesion coeff; stays above its bare-loco grip (~350 kN) so slip remains
+  // possible at a standstill while launches are snappier.
+  maxTractiveEffortN: 440_000, // N — more tractive effort
   fuelCapacity: 6_000, // L — big tank; must clear the finale (see constants.ts)
-  fuelBurnRate: 0.014, // L/(kW·s) — thirstier per unit work than loco-1
+  // Cut from 0.014 in step with the +16.7% power bump (0.014 / 1.167 ≈ 0.012)
+  // so per-tank work — and the finale headroom — is preserved. Still thirstier
+  // per unit work than loco-1.
+  fuelBurnRate: 0.012, // L/(kW·s) — thirstier per unit work than loco-1
   coolingRate: 1.4, // °C/s — better cooling
   heatGenerationFactor: 0.0006, // °C/(kW·s) — runs cooler under load
   price: 14_000, // money units — significant investment

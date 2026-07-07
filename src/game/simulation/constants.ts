@@ -38,8 +38,15 @@ export const TRACTIVE_EFFORT_BASE_SPEED = 3.0;
 /**
  * Maximum brake force available from the base brake system, newtons. Upgrades
  * add to this via `brakeForceBonus`.
+ *
+ * Buffed from the old 180 kN because braking felt very underpowered: the train
+ * tops out around ~50 m/s on the flat (power-limited), and 180 kN on the bare
+ * 90 t loco is only ~2 m/s² — ~625 m to stop from cruise, and far worse under
+ * cargo. At 360 kN a bare loco-1 pulls ~4 m/s² (≈50 m from 20 m/s, ≈310 m from
+ * a 50 m/s cruise) and even a ~4× overloaded consist still stops within a few
+ * hundred metres — "prompt but not teleporting", per the balance brief.
  */
-export const BASE_BRAKE_FORCE_N = 180_000;
+export const BASE_BRAKE_FORCE_N = 360_000;
 
 /**
  * Small speed (m/s) treated as "stopped" for station interactions and to snap
@@ -96,13 +103,20 @@ export const CRITICAL_POWER_FACTOR = 0.78;
 // --- Traction ------------------------------------------------------------
 
 /**
- * Base rail adhesion coefficient (dimensionless). Tuned deliberately below the
- * starter loco's tractive-effort limit so that at low speed under heavy load
- * loco-1 demands more effort than the rail can transfer and the wheels slip;
- * loco-2 (climbing at higher speed, power-limited) and sanders keep grip ahead
- * of demand. Available grip ≈ (BASE + upgrades) * weightOnDrivers.
+ * Base rail adhesion coefficient (dimensionless). Available grip ≈
+ * (BASE + upgrades) * weightOnDrivers, and this grip is the real cap on
+ * *low-speed* acceleration (below the slip-onset speed the loco is grip-limited,
+ * not power-limited). It is kept deliberately just *below* each loco's flat
+ * tractive-effort cap so full-throttle launches still bite the adhesion limit —
+ * the wheels can chirp on a hard start and slip persists whenever the train is
+ * pinned at very low speed under heavy load — while normal driving grips as soon
+ * as it clears the slip-onset speed (≈ maxPower / grip). Bumped from the old
+ * 0.26 alongside the higher effort caps (see locomotives.ts) so the launch is
+ * meaningfully snappier: bare loco-1 now bites ~291 kN at the rail (≈3.2 m/s²)
+ * instead of ~230 kN (≈2.5 m/s²). loco-2 (more power → climbs power-limited at
+ * higher speed) and sanders keep grip ahead of demand on the sustained climb.
  */
-export const BASE_ADHESION_COEFF = 0.26;
+export const BASE_ADHESION_COEFF = 0.33;
 
 /**
  * Fraction of total train weight that bears on the driven axles. A locomotive
@@ -198,33 +212,40 @@ export const MAX_DAMAGE = 1.0;
 // STOPPING at a station, so the sizing case is "cross the longest no-refuel
 // stretch starting from a standstill at full throttle" (measured with the sim;
 // full throttle is the fuel-optimal way up a hill — less time on the grade =
-// less fuel). Measured work from a standstill, loco-1 full throttle:
+// less fuel).
 //
-//   stretch                                     distance   work (kW·s)
+// NOTE: the acceleration buff (locomotives.ts: higher power + tractive effort,
+// and constants.ts: higher adhesion) raised engine power ~18% (loco-1) / ~17%
+// (loco-2). Since work ∝ power, each loco's fuelBurnRate was cut in step
+// (loco-1 0.013→0.0115, loco-2 0.014→0.012) so litres-per-stretch — and this
+// whole balance — is preserved. Figures below are re-measured litres consumed
+// from a standstill at full throttle with the CURRENT constants:
+//
+//   stretch                                     distance   litres used
 //   ------------------------------------------- ---------- -----------
-//   start → lower-town                            2600 m    ~103,600
-//   cargo-yard → repair-depot (ash = NO refuel)   3900 m    ~151,800  ← binds loco-1
-//   bridge → summit  (the FINALE, no refuel)      4500 m    ~247,100
+//   loco-1 start → lower-town                     2600 m    ~1326 L
+//   loco-1 cargo-yard → repair-depot (NO refuel)  3900 m    ~1921 L  ← binds loco-1
+//   loco-1 bridge → summit (FINALE, no refuel)    4500 m    >2500 L (tank runs dry)
 //
-// loco-1 (2500 L @ 0.013 = 192,300 kW·s per tank):
-//   • Longest early no-refuel gap is cargo-yard→repair-depot (ash-tunnel offers
-//     no refuel): ~151,800 kW·s ≈ 1973 L ≈ 79% of a tank — crossable with ~21%
+// loco-1 (2500 L @ 0.0115 ≈ 217,000 kW·s per tank):
+//   • Longest early no-refuel gap is cargo-yard→repair-depot (the ash tunnel
+//     offers no refuel): ~1921 L ≈ 77% of a tank — crossable with ~23%
 //     headroom. This is what caps the burn rate: pushing it higher would strand
 //     the player between cargo-yard and the repair depot.
 //   • Under continuous driving a full tank lasts ~2–3 station gaps, and each
 //     station stop (a restart from rest) costs extra, so the practical cadence
 //     is "refuel roughly every other station", sooner when flooring it.
-//   • The FINALE (~247,100 kW·s ≈ 3213 L) EXCEEDS loco-1's tank on purpose: the
-//     starter cannot make the summit climb on one tank, so the run requires the
-//     loco-2 upgrade (sold before the climb, at the repair depot) — reinforcing
-//     the design intent that "loco-2 handles the late climb".
+//   • The FINALE needs more than a full 2500 L tank on purpose: the starter
+//     cannot make the summit climb on one tank (it runs dry short of the crest),
+//     so the run requires the loco-2 upgrade (sold before the climb, at the
+//     repair depot) — reinforcing the intent that "loco-2 handles the late climb".
 //
-// loco-2 (6000 L @ 0.014 = 428,600 kW·s per tank): a bigger, more powerful
+// loco-2 (6000 L @ 0.012 = 500,000 kW·s per tank): a bigger, more powerful
 // engine does much more work over the same ground (full-throttle finale from
-// the bridge ≈ 320,400 kW·s ≈ 4485 L; from the repair depot, skipping the bridge
-// top-up, ≈ 352,200 kW·s ≈ 4931 L), so it needs both a higher burn rate (still
-// "thirstier per unit work") and a larger tank to clear the finale with ~20–25%
-// headroom whether it tops up at the bridge or not.
+// the bridge ≈ 4048 L; from the repair depot, skipping the bridge top-up,
+// ≈ 4462 L), so it needs both a higher burn rate (still "thirstier per unit
+// work") and a larger tank to clear the finale with ~25–33% headroom whether it
+// tops up at the bridge or not.
 //
 // Refuel economy is retuned alongside consumption — see REFUEL_COST_PER_L below.
 

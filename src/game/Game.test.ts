@@ -349,6 +349,34 @@ describe("fire and timer failure", () => {
   });
 });
 
+describe("balance: buffed acceleration from a standstill", () => {
+  /** Seconds of full-throttle acceleration from rest to `target` m/s on the
+   *  flat lower-town section (x=1200, grade 0). Returns Infinity if not hit. */
+  function timeToSpeed(locoId: string, target: number): number {
+    const sim = createGameSimulation({ seed: 1, locomotiveId: locoId });
+    const st = sim.getState();
+    st.physics.positionX = 1200; // flat section (grade 0)
+    st.physics.speed = 0;
+    st.fire.positionX = -1_000_000; // isolate acceleration from the fire
+    sim.applyAction({ throttle: 1, brake: 0 });
+    for (let i = 0; i < 30 * 60; i++) {
+      sim.tick(DT);
+      if (sim.getSnapshot().speed >= target) return (i + 1) * DT;
+    }
+    return Number.POSITIVE_INFINITY;
+  }
+
+  it("loco-1 reaches 15 m/s from rest promptly on the flat", () => {
+    // Balance guard for the acceleration buff (power + effort + adhesion): the
+    // starter should hit ~54 km/h within ~9 s (measured ~8.7 s; was ~10.4 s).
+    expect(timeToSpeed("loco-1", 15)).toBeLessThan(10);
+  });
+
+  it("the more powerful loco-2 out-accelerates loco-1 to cruise", () => {
+    expect(timeToSpeed("loco-2", 20)).toBeLessThan(timeToSpeed("loco-1", 20));
+  });
+});
+
 describe("balance: loco-2 outperforms loco-1 on the steep late grade", () => {
   it("loco-2 climbs the 7% grade faster than loco-1", () => {
     function climb(locoId: string): number {

@@ -87,6 +87,33 @@ describe("trainPhysics integration", () => {
     expect(after.speed).toBe(0);
   });
 
+  it("full brake stops promptly from cruise (buffed brake force)", () => {
+    // Balance guard for the brake buff (BASE_BRAKE_FORCE_N): stopping distance
+    // from a cruise speed must be a few hundred metres at most, not kilometres.
+    // Distance travelled from a given speed under full brake until at rest.
+    function stopDistance(startSpeed: number, massKg: number): number {
+      let cur = baseInput({
+        speed: startSpeed,
+        massKg,
+        effectiveTractiveEffortN: 0,
+        brake: 1,
+      });
+      for (let i = 0; i < 6000; i++) {
+        const r = stepPhysics(cur);
+        cur = { ...cur, speed: r.speed, positionX: r.positionX };
+        if (cur.speed === 0) break;
+      }
+      return cur.positionX;
+    }
+
+    // Bare loco from 20 m/s: prompt (~50 m with the 360 kN buff; was ~98 m).
+    expect(stopDistance(20, LOCO_1.mass)).toBeLessThan(70);
+    // A ~4× overloaded consist from 20 m/s still stops within a few hundred m.
+    expect(stopDistance(20, LOCO_1.mass * 4)).toBeLessThan(300);
+    // Even from a ~50 m/s cruise the bare loco halts in a few hundred metres.
+    expect(stopDistance(50, LOCO_1.mass)).toBeLessThan(400);
+  });
+
   it("uphill slows acceleration versus flat", () => {
     const flat = run(baseInput({ effectiveTractiveEffortN: 150_000 }), 180);
     const uphill = run(
