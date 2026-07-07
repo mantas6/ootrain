@@ -1,14 +1,18 @@
 /**
  * Advancing fire-front visual at the snapshot's `fireFrontX`.
  *
- * Renders the wall of fire chasing the train: a row of emissive flame cones
- * that flicker, a warm ground glow, a rising ember particle field, and a dark
- * smoke column behind the front. The whole group is moved to the fire X each
- * frame; regions *behind* the front are switched to burned variants by
- * {@link WorldView} (this view only draws the front itself and its glow).
+ * Renders the wall of fire chasing the train so it engulfs the *whole* terrain
+ * tile footprint, not just a narrow strip by the rails: a grid of emissive
+ * flame cones that spans the full tile depth (across Z) and a band behind the
+ * front (along X), a warm ground glow covering the tile footprint, a rising
+ * ember particle field, and a pulsing point light. The whole group is moved to
+ * the fire X each frame; regions *behind* the front are switched to burned
+ * variants by {@link WorldView} (this view only draws the front + its glow).
  *
- * Particle pools are fixed-size (no per-frame allocation). A soft point light
- * pulses at the front so nearby terrain catches the orange glow.
+ * Flame layout is deterministic (seeded per slot via {@link planFlameSlots}) so
+ * the wall looks stable; only the flicker/ember animation is time-driven.
+ * Particle pools are fixed-size (no per-frame allocation) and counts are scaled
+ * to the covered area, not silly-large.
  */
 
 import {
@@ -27,18 +31,85 @@ import {
 } from "three";
 import { PALETTE } from "../palette";
 import { getElevationAt } from "../../game/data";
+import { hashSeed, seededRandom } from "../routeGeometry";
 
-const FLAME_COUNT = 9;
-const EMBER_COUNT = 80;
-/** Width across Z the fire wall spans, metres. */
-const WALL_WIDTH = 40;
+/**
+ * Depth across Z the fire covers, metres. Matches the terrain tile ground
+ * depth (`depth` in {@link TerrainTile}'s `buildGround`) so the wall of fire
+ * reaches both tile edges instead of hugging the track corridor.
+ */
+const TILE_DEPTH = 90;
+/**
+ * Width along X the fire footprint covers, metres. Matches the world chunk /
+ * tile width (`CHUNK_SIZE` in {@link WorldView}) so the ground glow blankets a
+ * whole tile behind the advancing front.
+ */
+const TILE_WIDTH = 200;
+/** Depth along X of the active flame band trailing behind the front, metres. */
+const FRONT_DEPTH = 60;
+/** Flame grid: columns across Z (tile depth) × rows along X (front band). */
+const FLAME_COLS = 13;
+const FLAME_ROWS = 6;
+const EMBER_COUNT = 220;
+
+/** A deterministic flame placement within the fire footprint. */
+export interface FlameSlot {
+  /** X offset from the front (<= 0: trailing behind into the burned region). */
+  x: number;
+  /** Z offset across the tile depth (edge to edge). */
+  z: number;
+  /** Untouched base scale of the cone. */
+  baseScale: number;
+  /** Flicker phase offset, radians. */
+  phase: number;
+  /** 0 at the leading edge, 1 at the back of the band (height falloff). */
+  depthT: number;
+}
+
+/**
+ * Lays out a grid of flame slots that spans the full tile depth across Z and a
+ * band of `frontDepth` behind the front along X. Pure and deterministic (seeded
+ * hash PRNG) so the wall of fire is stable frame to frame. The outermost
+ * columns sit exactly on the tile edges (±`tileDepth`/2) so coverage always
+ * reaches edge to edge; interior columns get bounded jitter for a natural look.
+ */
+export function planFlameSlots(
+  cols: number,
+  rows: number,
+  tileDepth: number,
+  frontDepth: number,
+  seed = 0xf12e,
+): FlameSlot[] {
+  const rand = seededRandom(hashSeed(cols * 131 + rows, seed));
+  const halfDepth = tileDepth / 2;
+  const slots: FlameSlot[] = [];
+  for (let r = 0; r < rows; r++) {
+    const depthT = rows > 1 ? r / (rows - 1) : 0;
+    const x = -depthT * frontDepth;
+    for (let c = 0; c < cols; c++) {
+      const base = cols > 1 ? (c / (cols - 1) - 0.5) * tileDepth : 0;
+      // Edge columns stay pinned to the tile edge; interior columns jitter.
+      const edge = c === 0 || c === cols - 1;
+      const jitter = edge ? 0 : (rand() - 0.5) * (tileDepth / cols);
+      const z = Math.max(-halfDepth, Math.min(halfDepth, base + jitter));
+      slots.push({
+        x,
+        z,
+        baseScale: (0.75 + rand() * 0.7) * (1 - 0.4 * depthT),
+        phase: rand() * Math.PI * 2,
+        depthT,
+      });
+    }
+  }
+  return slots;
+}
 
 interface Flame {
   mesh: Mesh;
   material: MeshBasicMaterial;
   baseScale: number;
   phase: number;
-  z: number;
+  baseY: number;
 }
 
 /** The advancing fire-front effect. */
@@ -56,6 +127,7 @@ export class FireFrontView {
   private readonly emberVel: Float32Array;
   private readonly emberAge: Float32Array;
   private readonly emberLife: Float32Array;
+  private readonly emberRand = seededRandom(hashSeed(EMBER_COUNT, 0xe3be));
 
   private time = 0;
   private currentX = 0;
@@ -66,10 +138,16 @@ export class FireFrontView {
     this.group = new Group();
     this.group.name = "fire-front";
 
-    // Flame cones across the wall width.
-    const coneGeo = new ConeGeometry(1.1, 3.2, 7);
-    for (let i = 0; i < FLAME_COUNT; i++) {
-      const z = (i / (FLAME_COUNT - 1) - 0.5) * WALL_WIDTH;
+    // Flame cones laid out across the full tile depth and a band behind the
+    // front, so the fire engulfs the whole tile footprint.
+    const coneGeo = new ConeGeometry(1.4, 3.4, 7);
+    const slots = planFlameSlots(
+      FLAME_COLS,
+      FLAME_ROWS,
+      TILE_DEPTH,
+      FRONT_DEPTH,
+    );
+    for (const slot of slots) {
       const material = new MeshBasicMaterial({
         color: this.hot.clone(),
         transparent: true,
@@ -78,19 +156,22 @@ export class FireFrontView {
         blending: AdditiveBlending,
       });
       const mesh = new Mesh(coneGeo, material);
-      mesh.position.set(0, 1.8, z);
+      const baseY = 1.8 * (1 - 0.35 * slot.depthT);
+      mesh.position.set(slot.x, baseY, slot.z);
       mesh.frustumCulled = false;
       this.group.add(mesh);
       this.flames.push({
         mesh,
         material,
-        baseScale: 0.8 + Math.random() * 0.8,
-        phase: Math.random() * Math.PI * 2,
-        z,
+        baseScale: slot.baseScale,
+        phase: slot.phase,
+        baseY,
       });
     }
 
-    // Ground glow: a flat additive plane lying on the ground at the front.
+    // Ground glow: a flat additive plane covering the tile footprint, biased to
+    // trail behind the front into the burned region. Rotated flat about X so the
+    // geometry width maps to world X and its height to world Z.
     this.glowMat = new MeshBasicMaterial({
       color: PALETTE.ember,
       transparent: true,
@@ -98,26 +179,30 @@ export class FireFrontView {
       depthWrite: false,
       blending: AdditiveBlending,
     });
-    this.glow = new Mesh(new PlaneGeometry(14, WALL_WIDTH + 10), this.glowMat);
+    this.glow = new Mesh(
+      new PlaneGeometry(TILE_WIDTH, TILE_DEPTH + 10),
+      this.glowMat,
+    );
     this.glow.rotation.x = -Math.PI / 2;
-    this.glow.position.y = 0.2;
+    // Extend ~30 m ahead of the front and the rest behind it.
+    this.glow.position.set(-TILE_WIDTH / 2 + 30, 0.2, 0);
     this.glow.frustumCulled = false;
     this.group.add(this.glow);
 
-    // Pulsing fire light.
-    this.light = new PointLight(PALETTE.ember, 40, 120, 2);
-    this.light.position.set(-4, 6, 0);
+    // Pulsing fire light, ranged to reach across the whole tile.
+    this.light = new PointLight(PALETTE.ember, 40, 180, 2);
+    this.light.position.set(-6, 8, 0);
     this.group.add(this.light);
 
-    // Ember particles rising off the front.
+    // Ember particles rising off the front across its full width.
     this.emberPos = new Float32Array(EMBER_COUNT * 3);
     this.emberVel = new Float32Array(EMBER_COUNT * 3);
     this.emberAge = new Float32Array(EMBER_COUNT);
     this.emberLife = new Float32Array(EMBER_COUNT);
     for (let i = 0; i < EMBER_COUNT; i++) {
-      this.emberAge[i] = Math.random() * 2;
-      this.emberLife[i] = 1.5 + Math.random() * 2;
       this.resetEmber(i);
+      // Stagger initial ages so the field is populated on the first frame.
+      this.emberAge[i] = this.emberRand() * this.emberLife[i];
     }
     this.emberGeo = new BufferGeometry();
     this.emberGeo.setAttribute(
@@ -139,14 +224,16 @@ export class FireFrontView {
 
   private resetEmber(i: number): void {
     const i3 = i * 3;
-    this.emberPos[i3] = (Math.random() - 0.5) * 6;
-    this.emberPos[i3 + 1] = Math.random() * 2;
-    this.emberPos[i3 + 2] = (Math.random() - 0.5) * WALL_WIDTH;
-    this.emberVel[i3] = -0.5 - Math.random();
-    this.emberVel[i3 + 1] = 2 + Math.random() * 3;
-    this.emberVel[i3 + 2] = (Math.random() - 0.5) * 1.5;
+    const rand = this.emberRand;
+    // Spawn anywhere in the flame band (X) and across the full tile depth (Z).
+    this.emberPos[i3] = 5 - rand() * (FRONT_DEPTH + 5);
+    this.emberPos[i3 + 1] = rand() * 2;
+    this.emberPos[i3 + 2] = (rand() - 0.5) * TILE_DEPTH;
+    this.emberVel[i3] = -0.5 - rand();
+    this.emberVel[i3 + 1] = 2 + rand() * 3;
+    this.emberVel[i3 + 2] = (rand() - 0.5) * 1.5;
     this.emberAge[i] = 0;
-    this.emberLife[i] = 1.5 + Math.random() * 2;
+    this.emberLife[i] = 1.5 + rand() * 2;
   }
 
   /**
@@ -167,7 +254,7 @@ export class FireFrontView {
         f.baseScale * (0.8 + flick * 0.6),
         f.baseScale * flick2,
       );
-      f.mesh.position.y = 1.8 * f.baseScale * (0.8 + flick * 0.3);
+      f.mesh.position.y = f.baseY * f.baseScale * (0.8 + flick * 0.3);
       f.material.color.copy(this.cool).lerp(this.hot, 0.4 + 0.4 * flick);
       f.material.opacity = 0.65 + 0.3 * flick2;
     }
