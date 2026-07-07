@@ -42,6 +42,12 @@ export const PALETTE = {
   rock: 0x6d6a63, // grey basalt
   rockDark: 0x4c4a45,
   sand: 0x9a8158,
+  scree: 0x7a756c, // pale loose rock / talus
+
+  // Distant summit terrain (background silhouettes + snow)
+  hillNear: 0x4d5763, // hazy blue-grey nearer ridge
+  hillFar: 0x3c4652, // more distant, cooler/hazier ridge
+  snow: 0xd6dbe1, // off-white snow cap
 
   // Burned / scorched variants
   ash: 0x2e2a27, // burned ground

@@ -26,6 +26,8 @@ import {
   makeShed,
   makeSmokeStack,
 } from "./CityProps";
+import { makeBoulder, makeHummock, makeOutcrop } from "./MountainScenery";
+import { makeHill, planBackgroundHills } from "./BackgroundHills";
 
 /** Region flavour buckets that bias which props a tile scatters. */
 export type RegionKind =
@@ -75,7 +77,12 @@ const REGION_STYLES: Record<RegionKind, RegionStyle> = {
     weights: [8, 3, 4, 2, 1, 1, 1],
     density: 16,
   },
-  summit: { ground: PALETTE.rock, weights: [2, 2, 4, 3, 2, 1, 1], density: 6 },
+  // Exposed summit above the treeline: almost no settlement props (houses,
+  // sheds, crates, stacks are dropped); the ground reads as bare rock with the
+  // odd wind-stunted tree/bush. The rugged relief comes from a dedicated
+  // scatter of boulders/outcrops/hummocks plus background hill silhouettes
+  // (see {@link buildSummitScenery}), not from this generic prop mix.
+  summit: { ground: PALETTE.rock, weights: [1, 3, 9, 0, 0, 0, 0], density: 8 },
 };
 
 /** Prop kinds in weight order (indices match {@link RegionStyle.weights}). */
@@ -128,9 +135,55 @@ export class TerrainTile {
 
     this.buildGround(startX, chunkSize, style, burned);
     this.buildScatter(chunkIndex, chunkSize, style, burned);
-    this.buildPowerLine(chunkIndex, chunkSize);
+    // Power lines are lowland infrastructure; the exposed summit skips them so
+    // the highest stretch reads as wild, rugged terrain.
+    if (region !== "summit") {
+      this.buildPowerLine(chunkIndex, chunkSize);
+    }
     if (!burned && (region === "town" || region === "yard")) {
       this.buildFences(chunkIndex, chunkSize);
+    }
+    if (region === "summit") {
+      this.buildSummitScenery(chunkIndex, chunkSize);
+    }
+  }
+
+  /**
+   * Extra rugged scenery for the summit region: background hill silhouettes for
+   * a mountainous horizon plus a deterministic scatter of boulders, outcrops,
+   * and hummocks near the track. Fire-agnostic (bare rock/earth), so it is
+   * built for both live and burned tiles. Uses its own seed salt so the layout
+   * is independent of (and doesn't disturb) the main prop scatter.
+   */
+  private buildSummitScenery(chunkIndex: number, chunkSize: number): void {
+    // Distant hill/mountain silhouettes behind the track.
+    for (const h of planBackgroundHills({ chunkIndex, chunkSize })) {
+      const hill = makeHill(h.snow, h.far);
+      hill.position.set(h.x, getElevationAt(h.x) - 1, h.z);
+      hill.scale.set(h.width / 2, h.height, h.width / 2);
+      this.group.add(hill);
+    }
+
+    // Rugged rock/earth scatter close to the rails.
+    const items = scatterInChunk({
+      chunkIndex,
+      chunkSize,
+      count: 7,
+      clearZ: 6,
+      maxZ: 30,
+      seedSalt: 0x2c0,
+    });
+    for (const item of items) {
+      const prop =
+        item.kind < 0.45
+          ? makeOutcrop()
+          : item.kind < 0.75
+            ? makeBoulder()
+            : makeHummock();
+      prop.position.set(item.x, getElevationAt(item.x) - 0.2, item.z);
+      prop.rotation.y = item.rotationY;
+      prop.scale.setScalar(item.scale * 1.2);
+      this.group.add(prop);
     }
   }
 
