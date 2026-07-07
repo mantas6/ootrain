@@ -33,6 +33,13 @@ import { disposeSharedCaches } from "./palette";
 const CHUNK_SIZE = 200;
 /** How many chunks to keep resident each side of the train. */
 const CHUNK_RADIUS = 4;
+/**
+ * How many chunks to stream *before* the route start (x < 0). The train's head
+ * sits at route X = 0 while its body (loco + trailing wagons, well under one
+ * chunk) extends into negative X, so a pre-start buffer keeps ground/track
+ * under the whole train instead of leaving it floating over the void.
+ */
+const PRE_START_CHUNKS = 1;
 
 /** A snapshot source (usually `() => sim.getSnapshot()`). */
 export type SnapshotProvider = () => GameSnapshot;
@@ -169,6 +176,7 @@ export class WorldView {
       CHUNK_SIZE,
       CHUNK_RADIUS,
       ROUTE_LENGTH_M,
+      -PRE_START_CHUNKS,
     );
 
     // Create missing.

@@ -57,18 +57,28 @@ export function chunkStartX(index: number, chunkSize: number): number {
 /**
  * Returns the inclusive `[min, max]` chunk indices that should be resident for
  * a camera/train centred at `centerX`, keeping `radiusChunks` chunks on each
- * side. Indices are clamped to `[0, maxIndex]` so we never stream chunks before
- * the start or past the end of the route.
+ * side. Indices are clamped to `[minChunkIndex, maxIndex]`.
+ *
+ * `minChunkIndex` defaults to 0 (the route start) but may be negative to stream
+ * a pre-start buffer: the train's head sits at route X = 0 while its body
+ * (loco + trailing wagons) extends into negative X, so terrain/track must exist
+ * behind the start line or the train appears to float over the void. The route
+ * elevation/grade helpers clamp to route bounds, so pre-start chunks sit flat
+ * at the start elevation, continuous with the track.
  */
 export function visibleChunkRange(
   centerX: number,
   chunkSize: number,
   radiusChunks: number,
   routeLength: number,
+  minChunkIndex = 0,
 ): { min: number; max: number } {
   const center = chunkIndexAt(centerX, chunkSize);
-  const lastIndex = Math.max(0, chunkIndexAt(routeLength, chunkSize));
-  const min = Math.max(0, center - radiusChunks);
+  const lastIndex = Math.max(
+    minChunkIndex,
+    chunkIndexAt(routeLength, chunkSize),
+  );
+  const min = Math.max(minChunkIndex, center - radiusChunks);
   const max = Math.min(lastIndex, center + radiusChunks);
   return { min, max };
 }

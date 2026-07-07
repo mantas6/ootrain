@@ -62,6 +62,25 @@ describe("routeGeometry", () => {
       const r = visibleChunkRange(5000, 200, 3, ROUTE_LENGTH_M);
       expect(r.max - r.min).toBe(6);
     });
+
+    it("streams a pre-start buffer behind the route start", () => {
+      // The train head sits at x=0 while its body trails into negative X, so
+      // with a negative floor the range must include chunk -1 (x in [-200, 0])
+      // to keep ground/track under the whole train.
+      const atStart = visibleChunkRange(0, 200, 4, ROUTE_LENGTH_M, -1);
+      expect(atStart.min).toBe(-1);
+
+      // Negative x (a trailing wagon) still resolves to a chunk that is resident
+      // at the start.
+      const tailChunk = chunkIndexAt(-30, 200);
+      expect(tailChunk).toBe(-1);
+      expect(tailChunk).toBeGreaterThanOrEqual(atStart.min);
+
+      // The floor only matters near the start: once the train has advanced, the
+      // window is driven by the radius, never dipping below the floor.
+      const midway = visibleChunkRange(5000, 200, 4, ROUTE_LENGTH_M, -1);
+      expect(midway.min).toBeGreaterThan(-1);
+    });
   });
 
   describe("seeded randomness", () => {
