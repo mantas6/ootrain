@@ -33,6 +33,14 @@ export interface TrainAction {
   refuel?: boolean;
 }
 
+/**
+ * Run difficulty. Scales the pressure knobs (time limit, fire speed, starting
+ * money, fuel burn, temperature failure window) via the modifiers table in
+ * constants.ts. "hard" leaves every value at its raw constant (the classic
+ * tuning); "normal" and "easy" progressively widen the margins.
+ */
+export type Difficulty = "easy" | "normal" | "hard";
+
 /** Temperature threshold state. */
 export type TemperatureState = "safe" | "warning" | "critical" | "failure";
 
@@ -138,8 +146,30 @@ export interface SimState {
    */
   fireEnabled: boolean;
 
+  /**
+   * Selected difficulty for this run. Drives the pressure-scaling modifiers
+   * (see constants.ts) and is serialized so resuming keeps the same tuning.
+   */
+  difficulty: Difficulty;
+
+  /** Configured total countdown time for this run, seconds (the initial value). */
+  timeLimitS: number;
+
   /** Remaining countdown time, seconds. */
   timeRemainingS: number;
+
+  /**
+   * Seconds the train has been stranded (out of fuel and stationary) with no
+   * way to self-rescue. Drives the emergency-reserve rescue timer; reset to 0
+   * once the train can move again or a rescue is granted. Seconds.
+   */
+  strandedS: number;
+
+  /**
+   * Count of emergency fuel rescues granted this run (relaxed mode only). Each
+   * increment is a UI cue that a rescue crew topped up the tank.
+   */
+  emergencyRefuelCount: number;
 
   /** Last-applied action inputs (persist between ticks until changed). */
   input: {
@@ -236,13 +266,25 @@ export interface GameSnapshot {
    */
   fireEnabled: boolean;
 
+  /** Selected difficulty for this run (for UI display). */
+  difficulty: Difficulty;
+
   /** Fire-front world X position, metres. */
   fireFrontX: number;
   /** Distance from fire front to train, metres (positive = fire is behind). */
   fireDistanceM: number;
 
+  /** Configured total countdown time for this run, seconds. */
+  timeLimitS: number;
+
   /** Remaining countdown time, seconds. */
   timeRemainingS: number;
+
+  /**
+   * Count of emergency fuel rescues granted this run (relaxed mode). The UI can
+   * watch this for a "rescue crew topped up your tank" notice.
+   */
+  emergencyRefuelCount: number;
 
   /** Overall run state. */
   runState: RunState;

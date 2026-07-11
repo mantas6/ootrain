@@ -22,6 +22,7 @@ import {
   getCargoJobById,
   getStationById,
   getUpgradeById,
+  LOCO_2_UPGRADE_ID,
 } from "../../game/data";
 import { Panel } from "../components/Panel";
 import { ActionButton } from "../components/ActionButton";
@@ -244,6 +245,18 @@ export function StationPanel({ snapshot }: StationPanelProps): ReactNode {
           <h3 className="mb-1 font-mono text-[10px] font-semibold tracking-widest text-amber-400/90 uppercase">
             Upgrades
           </h3>
+          {/* Telegraph the required loco-2 purchase: this depot sells it and the
+              player is still on the starter engine, which can't make the summit
+              climb. Reads only static data + snapshot ids — no rules here. */}
+          {stationData.services.upgradeIds.includes(LOCO_2_UPGRADE_ID) &&
+            snapshot.locomotiveId === "loco-1" && (
+              <p className="mb-2 rounded border border-amber-600/50 bg-amber-950/40 px-2 py-1.5 font-mono text-[10px] leading-relaxed text-amber-300">
+                Your starter engine can&apos;t make the final climb — save up
+                for the{" "}
+                {getUpgradeById(LOCO_2_UPGRADE_ID)?.name ?? "new locomotive"}{" "}
+                sold here before the summit.
+              </p>
+            )}
           <div className="flex flex-col gap-1.5">
             {stationData.services.upgradeIds.map((upId) => {
               const up = getUpgradeById(upId);

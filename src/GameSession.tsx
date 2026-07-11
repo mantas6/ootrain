@@ -19,7 +19,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { createGameSimulation } from "./game/Game";
-import type { SimState } from "./game/simulation/types";
+import type { Difficulty, SimState } from "./game/simulation/types";
 import { GameLoop } from "./game/GameLoop";
 import { KeyboardController, type ControlState } from "./input/controls";
 import { WorldView } from "./render/WorldView";
@@ -37,21 +37,26 @@ interface GameSessionProps {
   initialState: SimState | null;
   /** Whether the fire chase + timer are active for a fresh run. */
   fireEnabled: boolean;
+  /** Chosen difficulty for a fresh run. */
+  difficulty: Difficulty;
   /** Start a brand-new run (remounts a fresh session). */
-  onNewRun: (fireEnabled: boolean) => void;
+  onNewRun: (fireEnabled: boolean, difficulty: Difficulty) => void;
 }
 
 export function GameSession({
   initialState,
   fireEnabled,
+  difficulty,
   onNewRun,
 }: GameSessionProps): ReactNode {
   const containerRef = useRef<HTMLDivElement>(null);
 
   // --- Session singletons (created once for this mounted session) --------
-  // A resumed run restores its own fireEnabled via setState; the config value
-  // seeds a fresh sim.
-  const simRef = useRef(createGameSimulation({ seed: 7, fireEnabled }));
+  // A resumed run restores its own fireEnabled / difficulty via setState; the
+  // config values seed a fresh sim.
+  const simRef = useRef(
+    createGameSimulation({ seed: 7, fireEnabled, difficulty }),
+  );
   const sim = simRef.current;
 
   const audioRef = useRef<AudioEngine | null>(null);
@@ -236,8 +241,9 @@ export function GameSession({
 
   const restart = useCallback(() => {
     clearSave();
-    // Preserve this run's fire-chase choice across a restart.
-    onNewRun(sim.getSnapshot().fireEnabled);
+    // Preserve this run's fire-chase choice and difficulty across a restart.
+    const s = sim.getSnapshot();
+    onNewRun(s.fireEnabled, s.difficulty);
   }, [onNewRun, sim]);
 
   return (

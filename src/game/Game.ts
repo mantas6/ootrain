@@ -38,15 +38,19 @@ import {
 } from "./data";
 import {
   DEFAULT_SEED,
+  EMERGENCY_REFUEL_FRACTION,
+  EMERGENCY_REFUEL_PENALTY,
   ENGINE_IDLE_RPM,
   ENGINE_LOW_SPEED_STRAIN_FRACTION,
   FIRE_START_X,
+  getDifficultyModifiers,
   RUN_TIME_LIMIT_S,
   START_TEMP_C,
   STARTING_MONEY,
   STATION_RANGE_M,
   STOP_EPSILON,
 } from "./simulation/constants";
+import { stepEmergencyFuel } from "./simulation/emergencyFuel";
 import { stepEngineRpm } from "./simulation/engineRpm";
 import {
   distanceToFire,
@@ -78,6 +82,7 @@ import {
 import type {
   ActiveCargo,
   AvailableInteraction,
+  Difficulty,
   GameSnapshot,
   SimState,
   StationProximity,
@@ -109,6 +114,13 @@ export interface GameConfig {
    * the intro screen.
    */
   fireEnabled?: boolean;
+  /**
+   * Run difficulty (defaults to "hard", the raw-constant tuning, so callers and
+   * tests that don't pick one behave exactly as before). The UI defaults new
+   * runs to "normal". Scales time limit, fire speed, starting money, fuel burn
+   * and the temperature failure window (see constants.ts).
+   */
+  difficulty?: Difficulty;
 }
 
 /** The public simulation handle. */
@@ -136,6 +148,11 @@ interface EffectiveLoco {
   heatGenerationFactor: number;
   tractionBonus: number;
   brakeForceBonusN: number;
+  /**
+   * Offset added to every temperature threshold, °C — the sum of the
+   * heat-resistant upgrade's `maxTempBonus` and the difficulty widening.
+   */
+  tempThresholdOffsetC: number;
 }
 
 /** Creates a fresh, deterministic game simulation. */
@@ -143,6 +160,14 @@ export function createGameSimulation(config: GameConfig = {}): GameSimulation {
   const seed = config.seed ?? DEFAULT_SEED;
   const rng: Rng = createRng(seed);
   const locomotiveId = config.locomotiveId ?? LOCO_1.id;
+  // Default the sim to "hard" (the raw-constant tuning) so existing callers /
+  // tests that omit a difficulty behave exactly as before; the UI opts new runs
+  // into "normal".
+  const difficulty: Difficulty = config.difficulty ?? "hard";
+  const mods = getDifficultyModifiers(difficulty);
+  const timeLimitS =
+    config.timeLimitS ??
+    Math.round(RUN_TIME_LIMIT_S * mods.timeLimitMultiplier);
 
   const state: SimState = {
     physics: { positionX: 0, speed: 0, reverse: false },
@@ -157,9 +182,15 @@ export function createGameSimulation(config: GameConfig = {}): GameSimulation {
     locomotiveId,
     ownedUpgradeIds: [],
     cargo: [],
-    money: config.startingMoney ?? STARTING_MONEY,
+    money:
+      config.startingMoney ??
+      Math.round(STARTING_MONEY * mods.startingMoneyMultiplier),
     fireEnabled: config.fireEnabled ?? true,
-    timeRemainingS: config.timeLimitS ?? RUN_TIME_LIMIT_S,
+    difficulty,
+    timeLimitS,
+    timeRemainingS: timeLimitS,
+    strandedS: 0,
+    emergencyRefuelCount: 0,
     input: { throttle: 0, brake: 0 },
     runState: "running",
     runEndReason: "none",
@@ -173,6 +204,11 @@ export function createGameSimulation(config: GameConfig = {}): GameSimulation {
     let heatGenerationFactor = loco.heatGenerationFactor;
     let tractionBonus = 0;
     let brakeForceBonusN = 0;
+    // Difficulty widens the safe temperature window; the heat-resistant upgrade
+    // adds to it. Both shift warning/critical/failure by the same amount.
+    let tempThresholdOffsetC = getDifficultyModifiers(
+      state.difficulty,
+    ).tempThresholdOffsetC;
 
     for (const id of state.ownedUpgradeIds) {
       const up = getUpgradeById(id);
@@ -186,6 +222,9 @@ export function createGameSimulation(config: GameConfig = {}): GameSimulation {
       if (e.heatGenerationReduction !== undefined) {
         heatGenerationFactor *= 1 - e.heatGenerationReduction;
       }
+      if (e.maxTempBonus !== undefined) {
+        tempThresholdOffsetC += e.maxTempBonus;
+      }
     }
 
     return {
@@ -198,6 +237,7 @@ export function createGameSimulation(config: GameConfig = {}): GameSimulation {
       heatGenerationFactor,
       tractionBonus,
       brakeForceBonusN,
+      tempThresholdOffsetC,
     };
   }
 
@@ -396,8 +436,13 @@ export function createGameSimulation(config: GameConfig = {}): GameSimulation {
     const grade = getGradeAt(state.physics.positionX);
     const speedMag = Math.abs(state.physics.speed);
 
+    const mods = getDifficultyModifiers(state.difficulty);
+
     // --- Available power (thermal + damage + fuel gating) ---
-    const tempState = classifyTemperature(state.thermal.tempC);
+    const tempState = classifyTemperature(
+      state.thermal.tempC,
+      loco.tempThresholdOffsetC,
+    );
     const powerFactor =
       thermalPowerFactor(tempState) * damagePowerFactor(state.wear.damage);
     const fuelAvailable = !isEmpty(state.fuel.litres);
@@ -463,9 +508,11 @@ export function createGameSimulation(config: GameConfig = {}): GameSimulation {
       throttle * availPowerKW * ENGINE_LOW_SPEED_STRAIN_FRACTION;
     const enginePowerKW = Math.max(mechanicalPowerKW, strainFloorKW);
 
-    // --- Fuel burn ---
+    // --- Fuel burn (scaled by difficulty) ---
     if (fuelAvailable) {
-      const burned = computeFuelBurn(enginePowerKW, loco.fuelBurnRate, dt);
+      const burned =
+        computeFuelBurn(enginePowerKW, loco.fuelBurnRate, dt) *
+        mods.fuelBurnMultiplier;
       state.fuel.litres = burnFuel(state.fuel.litres, burned);
     }
 
@@ -479,6 +526,7 @@ export function createGameSimulation(config: GameConfig = {}): GameSimulation {
       speedMagAbs: speedMag,
       damage: state.wear.damage,
       extraHeatC: slipHeat,
+      thresholdOffsetC: loco.tempThresholdOffsetC,
       dt,
     });
     state.thermal.tempC = thermalResult.tempC;
@@ -508,11 +556,39 @@ export function createGameSimulation(config: GameConfig = {}): GameSimulation {
         state.fire.positionX,
         state.fire.elapsedS,
         dt,
+        mods.fireSpeedMultiplier,
       );
       state.fire.positionX = fireResult.positionX;
       state.fire.elapsedS = fireResult.elapsedS;
 
       state.timeRemainingS = Math.max(0, state.timeRemainingS - dt);
+    } else {
+      // --- Emergency fuel reserve (relaxed mode only) ---
+      // With the fire off nothing else ends the run, so a dry tank with no cash
+      // could strand the player forever. After a short stranded delay a rescue
+      // crew tops up a small amount of fuel at a money penalty (clamped to what
+      // the player has). Deterministic: a plain timer, no RNG.
+      const refuelStation = stationInRange();
+      const canSelfRescue =
+        refuelStation !== null &&
+        refuelStation.services.refuel &&
+        state.money > 0;
+      const emergency = stepEmergencyFuel({
+        outOfFuel: isEmpty(state.fuel.litres),
+        stationary: speedMag < STOP_EPSILON,
+        canSelfRescue,
+        strandedS: state.strandedS,
+        dt,
+      });
+      state.strandedS = emergency.strandedS;
+      if (emergency.triggered) {
+        state.fuel.litres = Math.max(
+          state.fuel.litres,
+          loco.fuelCapacity * EMERGENCY_REFUEL_FRACTION,
+        );
+        state.money = Math.max(0, state.money - EMERGENCY_REFUEL_PENALTY);
+        state.emergencyRefuelCount += 1;
+      }
     }
 
     // --- Win / fail resolution ---
@@ -635,7 +711,10 @@ export function createGameSimulation(config: GameConfig = {}): GameSimulation {
       fuelLitres: state.fuel.litres,
       fuelCapacity: loco.fuelCapacity,
       temperatureC: state.thermal.tempC,
-      temperatureState: classifyTemperature(state.thermal.tempC),
+      temperatureState: classifyTemperature(
+        state.thermal.tempC,
+        loco.tempThresholdOffsetC,
+      ),
       engineRpm: state.engine.rpm,
       tractionState: state.traction.state,
       slipRatio: state.traction.slipRatio,
@@ -648,12 +727,15 @@ export function createGameSimulation(config: GameConfig = {}): GameSimulation {
       ownedUpgradeIds: [...state.ownedUpgradeIds],
       station: buildStationProximity(),
       fireEnabled: state.fireEnabled,
+      difficulty: state.difficulty,
       fireFrontX: state.fire.positionX,
       fireDistanceM: distanceToFire(
         state.physics.positionX,
         state.fire.positionX,
       ),
+      timeLimitS: state.timeLimitS,
       timeRemainingS: state.timeRemainingS,
+      emergencyRefuelCount: state.emergencyRefuelCount,
       runState: state.runState,
       runEndReason: state.runEndReason,
       progress: clamp01(state.physics.positionX / ROUTE_LENGTH_M),
@@ -671,6 +753,20 @@ export function createGameSimulation(config: GameConfig = {}): GameSimulation {
     // Keyed off the incoming payload because `Object.assign` skips absent keys.
     if (typeof next.fireEnabled !== "boolean") {
       state.fireEnabled = true;
+    }
+    // Legacy saves predate difficulty; default them to "hard" (the tuning they
+    // were played under) and derive the missing timer/emergency fields.
+    if (next.difficulty === undefined) {
+      state.difficulty = "hard";
+    }
+    if (typeof next.timeLimitS !== "number") {
+      state.timeLimitS = RUN_TIME_LIMIT_S;
+    }
+    if (typeof next.strandedS !== "number") {
+      state.strandedS = 0;
+    }
+    if (typeof next.emergencyRefuelCount !== "number") {
+      state.emergencyRefuelCount = 0;
     }
   }
 

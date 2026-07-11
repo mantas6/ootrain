@@ -17,9 +17,12 @@ import {
   FIRE_BASE_SPEED,
 } from "./constants";
 
-/** Current fire speed (m/s) given elapsed run time. */
-export function fireSpeedAt(elapsedS: number): number {
-  return FIRE_BASE_SPEED + FIRE_RAMP_ACCEL * elapsedS;
+/**
+ * Current fire speed (m/s) given elapsed run time. `speedMultiplier` scales the
+ * whole rate (base + ramp) for difficulty — 1.0 = the raw ("hard") speed.
+ */
+export function fireSpeedAt(elapsedS: number, speedMultiplier = 1): number {
+  return (FIRE_BASE_SPEED + FIRE_RAMP_ACCEL * elapsedS) * speedMultiplier;
 }
 
 /** Result of advancing the fire one step. */
@@ -30,13 +33,15 @@ export interface FireStepResult {
   elapsedS: number;
 }
 
-/** Advances the fire front one tick. */
+/** Advances the fire front one tick. `speedMultiplier` scales fire speed for
+ *  difficulty (1.0 = raw "hard" speed). */
 export function stepFire(
   positionX: number,
   elapsedS: number,
   dt: number,
+  speedMultiplier = 1,
 ): FireStepResult {
-  const speed = fireSpeedAt(elapsedS);
+  const speed = fireSpeedAt(elapsedS, speedMultiplier);
   return {
     positionX: positionX + speed * dt,
     elapsedS: elapsedS + dt,

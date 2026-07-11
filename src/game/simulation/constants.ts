@@ -6,7 +6,13 @@
  * hit the balance sanity target from the brief: with loco-1 and no cargo the
  * train climbs the early/mid grades but struggles or slips on the late 7%
  * climb, while loco-2 handles it.
+ *
+ * The raw values below are the "hard" tuning (the classic, unforgiving numbers).
+ * Difficulty scales the pressure knobs on top of them via
+ * {@link DIFFICULTY_MODIFIERS} — see the "Difficulty" block near the bottom.
  */
+
+import type { Difficulty } from "./types";
 
 // --- Physics -------------------------------------------------------------
 
@@ -363,3 +369,83 @@ export const STATION_RANGE_M = 60;
 
 /** Default deterministic seed when none is supplied. */
 export const DEFAULT_SEED = 1;
+
+// --- Difficulty ----------------------------------------------------------
+//
+// Difficulty makes the game approachable without forking the balance: it only
+// scales a handful of pressure knobs on top of the raw ("hard") constants
+// above. "hard" is the identity (every multiplier 1.0, no threshold offset), so
+// existing runs / tests that don't pick a difficulty behave exactly as before.
+// "normal" is the mainstream default (noticeably more forgiving than the raw
+// tuning) and "easy" is very forgiving.
+
+/** Per-difficulty scaling of the pressure knobs. All fields dimensionless
+ *  except `tempThresholdOffsetC` (°C). */
+export interface DifficultyModifiers {
+  /** Multiplier on the base run time limit (dimensionless). Higher = more time. */
+  timeLimitMultiplier: number;
+  /** Multiplier on fire-front base speed AND ramp (dimensionless). Lower = slower fire. */
+  fireSpeedMultiplier: number;
+  /** Multiplier on starting money (dimensionless). Higher = richer start. */
+  startingMoneyMultiplier: number;
+  /** Multiplier on fuel burned per tick (dimensionless). Lower = thriftier. */
+  fuelBurnMultiplier: number;
+  /**
+   * Offset added to every temperature threshold (warning/critical/failure), °C.
+   * Higher = a wider safe window before overheating bites.
+   */
+  tempThresholdOffsetC: number;
+}
+
+/**
+ * Difficulty → modifiers. "hard" is the identity so the raw constants above are
+ * the hard tuning. Easy ≈ +50% time, 0.75× fire speed, 2× money, 0.8× fuel
+ * burn, +15 °C thresholds; normal is a milder version of the same.
+ */
+export const DIFFICULTY_MODIFIERS: Record<Difficulty, DifficultyModifiers> = {
+  easy: {
+    timeLimitMultiplier: 1.5, // 780 s → 1170 s
+    fireSpeedMultiplier: 0.75, // 15.5 m/s → ~11.6 m/s base
+    startingMoneyMultiplier: 2.0, // 1200 → 2400
+    fuelBurnMultiplier: 0.8, // 20% thriftier
+    tempThresholdOffsetC: 15, // +15 °C safe window
+  },
+  normal: {
+    timeLimitMultiplier: 1.2, // 780 s → 936 s
+    fireSpeedMultiplier: 0.9, // 15.5 m/s → ~13.95 m/s base
+    startingMoneyMultiplier: 1.5, // 1200 → 1800
+    fuelBurnMultiplier: 0.9, // 10% thriftier
+    tempThresholdOffsetC: 7, // +7 °C safe window
+  },
+  hard: {
+    timeLimitMultiplier: 1.0,
+    fireSpeedMultiplier: 1.0,
+    startingMoneyMultiplier: 1.0,
+    fuelBurnMultiplier: 1.0,
+    tempThresholdOffsetC: 0,
+  },
+};
+
+/** Returns the modifiers for a difficulty (defaults to the hard identity). */
+export function getDifficultyModifiers(
+  difficulty: Difficulty,
+): DifficultyModifiers {
+  return DIFFICULTY_MODIFIERS[difficulty] ?? DIFFICULTY_MODIFIERS.hard;
+}
+
+// --- Emergency fuel reserve ----------------------------------------------
+//
+// Relaxed mode (fireEnabled = false) removes the fire, so a player who runs dry
+// between stations with no money to refuel could be permanently stranded (the
+// train coasts to a halt and nothing ever ends the run). To keep the relaxed
+// mode actually finishable, a rescue crew grants a small emergency top-up after
+// a short stranded delay, at a money penalty clamped to what the player has.
+
+/** Seconds stranded (out of fuel, stopped, no self-rescue) before a rescue arrives. */
+export const EMERGENCY_REFUEL_DELAY_S = 8;
+
+/** Fraction of the tank the rescue crew adds — enough to limp to the next station. */
+export const EMERGENCY_REFUEL_FRACTION = 0.15;
+
+/** Money penalty per emergency rescue, clamped to available money (never below 0). */
+export const EMERGENCY_REFUEL_PENALTY = 400;

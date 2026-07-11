@@ -52,15 +52,27 @@ export interface TemperatureInput {
   damage: number;
   /** Extra heat from slip / other sources this tick, °C. */
   extraHeatC: number;
+  /**
+   * Offset added to every temperature threshold, °C. Combines the difficulty
+   * widening with the heat-resistant upgrade bonus. Defaults to 0.
+   */
+  thresholdOffsetC?: number;
   /** Tick duration, seconds. */
   dt: number;
 }
 
-/** Classifies a temperature into its threshold state. */
-export function classifyTemperature(tempC: number): TemperatureState {
-  if (tempC >= TEMP_FAILURE_C) return "failure";
-  if (tempC >= TEMP_CRITICAL_C) return "critical";
-  if (tempC >= TEMP_WARNING_C) return "warning";
+/**
+ * Classifies a temperature into its threshold state. `thresholdOffsetC` shifts
+ * all three thresholds up (difficulty widening + heat-resistant upgrade), so a
+ * higher offset means the engine tolerates more heat before each band.
+ */
+export function classifyTemperature(
+  tempC: number,
+  thresholdOffsetC = 0,
+): TemperatureState {
+  if (tempC >= TEMP_FAILURE_C + thresholdOffsetC) return "failure";
+  if (tempC >= TEMP_CRITICAL_C + thresholdOffsetC) return "critical";
+  if (tempC >= TEMP_WARNING_C + thresholdOffsetC) return "warning";
   return "safe";
 }
 
@@ -126,7 +138,10 @@ export function stepTemperature(
     newTemp = AMBIENT_TEMP_C;
   }
 
-  return { tempC: newTemp, state: classifyTemperature(newTemp) };
+  return {
+    tempC: newTemp,
+    state: classifyTemperature(newTemp, input.thresholdOffsetC ?? 0),
+  };
 }
 
 /**

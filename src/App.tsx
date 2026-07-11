@@ -16,7 +16,7 @@
 
 import { useCallback, useState } from "react";
 import type { ReactNode } from "react";
-import type { SimState } from "./game/simulation/types";
+import type { Difficulty, SimState } from "./game/simulation/types";
 import { loadGame, clearSave } from "./game/save/localStorageSave";
 import { hasResumableSave } from "./game/save/saveIntegration";
 import { StartScreen } from "./ui/screens/StartScreen";
@@ -30,6 +30,8 @@ type Phase =
       initialState: SimState | null;
       /** Fire chase + timer active for this fresh run (ignored when resuming). */
       fireEnabled: boolean;
+      /** Chosen difficulty for this fresh run (ignored when resuming). */
+      difficulty: Difficulty;
     };
 
 export function App(): ReactNode {
@@ -38,15 +40,19 @@ export function App(): ReactNode {
   // page load is the only route back to this screen).
   const [hasSave] = useState(() => hasResumableSave());
 
-  const startNewRun = useCallback((fireEnabled: boolean) => {
-    clearSave();
-    setPhase((p) => ({
-      kind: "playing",
-      sessionId: p.kind === "playing" ? p.sessionId + 1 : 1,
-      initialState: null,
-      fireEnabled,
-    }));
-  }, []);
+  const startNewRun = useCallback(
+    (fireEnabled: boolean, difficulty: Difficulty) => {
+      clearSave();
+      setPhase((p) => ({
+        kind: "playing",
+        sessionId: p.kind === "playing" ? p.sessionId + 1 : 1,
+        initialState: null,
+        fireEnabled,
+        difficulty,
+      }));
+    },
+    [],
+  );
 
   const continueRun = useCallback(() => {
     const state = loadGame();
@@ -54,9 +60,10 @@ export function App(): ReactNode {
       kind: "playing",
       sessionId: p.kind === "playing" ? p.sessionId + 1 : 1,
       initialState: state,
-      // Resuming restores the saved run's own fireEnabled via setState; this
-      // config value is only a fallback for the fresh-sim construction.
+      // Resuming restores the saved run's own fireEnabled / difficulty via
+      // setState; these config values are only fallbacks for fresh-sim setup.
       fireEnabled: state?.fireEnabled ?? true,
+      difficulty: state?.difficulty ?? "normal",
     }));
   }, []);
 
@@ -73,6 +80,7 @@ export function App(): ReactNode {
           key={phase.sessionId}
           initialState={phase.initialState}
           fireEnabled={phase.fireEnabled}
+          difficulty={phase.difficulty}
           onNewRun={startNewRun}
         />
       )}
