@@ -79,7 +79,10 @@ export function Hud({
     <div className="pointer-events-none absolute inset-0 select-none">
       {/* Top-left: timer + gauges */}
       <div className="absolute top-3 left-3 flex w-64 flex-col gap-2">
-        <TimerDisplay timeRemainingS={snapshot.timeRemainingS} />
+        {/* Timer only matters when the fire chase / countdown is active. */}
+        {snapshot.fireEnabled && (
+          <TimerDisplay timeRemainingS={snapshot.timeRemainingS} />
+        )}
         <Panel>
           <div className="flex flex-col gap-2.5">
             <SpeedGauge speed={snapshot.speed} reverse={snapshot.reverse} />

@@ -31,6 +31,7 @@ function fakeSnapshot(): GameSnapshot {
       inRange: false,
       interactions: [],
     },
+    fireEnabled: true,
     fireFrontX: 0,
     fireDistanceM: 0,
     timeRemainingS: 0,

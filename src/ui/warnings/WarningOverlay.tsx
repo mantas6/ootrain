@@ -70,26 +70,29 @@ function collectWarnings(s: GameSnapshot): WarningItem[] {
     });
   }
 
-  if (s.fireDistanceM <= FIRE_CRITICAL_M) {
-    out.push({
-      key: "fire",
-      label: "FIRE CLOSING IN — move!",
-      severity: "critical",
-    });
-  } else if (s.fireDistanceM <= FIRE_CLOSE_M) {
-    out.push({
-      key: "fire",
-      label: "Fire approaching from behind",
-      severity: "warning",
-    });
-  }
+  // Fire proximity + low-time only apply when the fire/timer mechanic is on.
+  if (s.fireEnabled) {
+    if (s.fireDistanceM <= FIRE_CRITICAL_M) {
+      out.push({
+        key: "fire",
+        label: "FIRE CLOSING IN — move!",
+        severity: "critical",
+      });
+    } else if (s.fireDistanceM <= FIRE_CLOSE_M) {
+      out.push({
+        key: "fire",
+        label: "Fire approaching from behind",
+        severity: "warning",
+      });
+    }
 
-  if (s.timeRemainingS <= LOW_TIME_S) {
-    out.push({
-      key: "time",
-      label: "TIME RUNNING OUT",
-      severity: "critical",
-    });
+    if (s.timeRemainingS <= LOW_TIME_S) {
+      out.push({
+        key: "time",
+        label: "TIME RUNNING OUT",
+        severity: "critical",
+      });
+    }
   }
 
   return out;

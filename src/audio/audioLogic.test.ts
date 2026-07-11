@@ -42,6 +42,7 @@ function makeSnapshot(overrides: Partial<GameSnapshot> = {}): GameSnapshot {
       inRange: false,
       interactions: [],
     },
+    fireEnabled: true,
     fireFrontX: -5000,
     fireDistanceM: 5000,
     timeRemainingS: 600,

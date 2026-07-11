@@ -6,14 +6,18 @@
  * hands control to the shell which starts the loop.
  */
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { ControlsList } from "./ControlsList";
 
 interface StartScreenProps {
   /** Whether a resumable save exists (shows the Continue button). */
   hasSave: boolean;
-  /** Start a fresh run (clears any save). */
-  onNewRun: () => void;
+  /**
+   * Start a fresh run (clears any save). `fireEnabled` carries the intro
+   * checkbox: true = the fire chase + timer are active (default), false =
+   * relaxed mode with no fire and no clock.
+   */
+  onNewRun: (fireEnabled: boolean) => void;
   /** Resume the stored run. */
   onContinue: () => void;
 }
@@ -24,6 +28,9 @@ export function StartScreen({
   onNewRun,
   onContinue,
 }: StartScreenProps): ReactNode {
+  // Checkbox is "Disable fire chase" so the default (unchecked) keeps the
+  // classic fire-on behaviour. `fireEnabled` is the inverse of the checkbox.
+  const [fireDisabled, setFireDisabled] = useState(false);
   return (
     <div className="pointer-events-auto absolute inset-0 z-40 flex items-center justify-center bg-neutral-950/95 backdrop-blur-sm">
       <div className="w-[min(92vw,480px)] rounded-lg border-2 border-amber-700/70 bg-neutral-900/95 p-7 text-center shadow-2xl">
@@ -47,6 +54,16 @@ export function StartScreen({
           <ControlsList />
         </div>
 
+        <label className="mb-4 flex cursor-pointer items-center justify-center gap-2 font-mono text-[11px] tracking-widest text-neutral-300 uppercase select-none">
+          <input
+            type="checkbox"
+            checked={fireDisabled}
+            onChange={(e) => setFireDisabled(e.target.checked)}
+            className="h-3.5 w-3.5 accent-amber-500"
+          />
+          Disable fire chase &amp; timer
+        </label>
+
         <div className="flex flex-col gap-2">
           {hasSave && (
             <button
@@ -59,7 +76,7 @@ export function StartScreen({
           )}
           <button
             type="button"
-            onClick={onNewRun}
+            onClick={() => onNewRun(!fireDisabled)}
             className="w-full rounded-md border border-amber-500 bg-amber-500/20 px-4 py-2.5 font-mono text-sm font-bold tracking-widest text-amber-200 uppercase transition-colors hover:bg-amber-500/30"
           >
             {hasSave ? "New Run" : "Start Run"}

@@ -24,7 +24,13 @@ import { GameSession } from "./GameSession";
 
 type Phase =
   | { kind: "start" }
-  | { kind: "playing"; sessionId: number; initialState: SimState | null };
+  | {
+      kind: "playing";
+      sessionId: number;
+      initialState: SimState | null;
+      /** Fire chase + timer active for this fresh run (ignored when resuming). */
+      fireEnabled: boolean;
+    };
 
 export function App(): ReactNode {
   const [phase, setPhase] = useState<Phase>({ kind: "start" });
@@ -32,12 +38,13 @@ export function App(): ReactNode {
   // page load is the only route back to this screen).
   const [hasSave] = useState(() => hasResumableSave());
 
-  const startNewRun = useCallback(() => {
+  const startNewRun = useCallback((fireEnabled: boolean) => {
     clearSave();
     setPhase((p) => ({
       kind: "playing",
       sessionId: p.kind === "playing" ? p.sessionId + 1 : 1,
       initialState: null,
+      fireEnabled,
     }));
   }, []);
 
@@ -47,6 +54,9 @@ export function App(): ReactNode {
       kind: "playing",
       sessionId: p.kind === "playing" ? p.sessionId + 1 : 1,
       initialState: state,
+      // Resuming restores the saved run's own fireEnabled via setState; this
+      // config value is only a fallback for the fresh-sim construction.
+      fireEnabled: state?.fireEnabled ?? true,
     }));
   }, []);
 
@@ -62,6 +72,7 @@ export function App(): ReactNode {
         <GameSession
           key={phase.sessionId}
           initialState={phase.initialState}
+          fireEnabled={phase.fireEnabled}
           onNewRun={startNewRun}
         />
       )}

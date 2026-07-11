@@ -349,6 +349,66 @@ describe("fire and timer failure", () => {
   });
 });
 
+describe("fire toggle (fireEnabled: false)", () => {
+  it("defaults to fire enabled", () => {
+    const sim = createGameSimulation({ seed: 1 });
+    expect(sim.getSnapshot().fireEnabled).toBe(true);
+  });
+
+  it("does not advance the fire front when disabled", () => {
+    const sim = createGameSimulation({ seed: 1, fireEnabled: false });
+    const startFireX = sim.getSnapshot().fireFrontX;
+    for (let i = 0; i < 30 * 60; i++) sim.tick(DT);
+    // Fire position and elapsed ramp are frozen — the front never moves.
+    expect(sim.getSnapshot().fireFrontX).toBe(startFireX);
+    expect(sim.getState().fire.elapsedS).toBe(0);
+  });
+
+  it("never fails by fire even parked right in front of it", () => {
+    const sim = createGameSimulation({ seed: 1, fireEnabled: false });
+    const st = sim.getState();
+    // Park the train essentially on top of the (frozen) fire front.
+    st.physics.positionX = st.fire.positionX;
+    st.physics.speed = 0;
+    for (let i = 0; i < 30 * 120; i++) sim.tick(DT);
+    const s = sim.getSnapshot();
+    expect(s.runState).toBe("running");
+    expect(s.runEndReason).toBe("none");
+  });
+
+  it("never times out when disabled (timer frozen)", () => {
+    const sim = createGameSimulation({
+      seed: 1,
+      fireEnabled: false,
+      timeLimitS: 5,
+    });
+    const start = sim.getSnapshot().timeRemainingS;
+    for (let i = 0; i < 30 * 30; i++) {
+      sim.tick(DT);
+      if (sim.getSnapshot().runState !== "running") break;
+    }
+    const s = sim.getSnapshot();
+    expect(s.runState).toBe("running");
+    // The clock does not tick down.
+    expect(s.timeRemainingS).toBe(start);
+  });
+
+  it("can still win by reaching the finish with the fire disabled", () => {
+    const sim = createGameSimulation({ seed: 1, fireEnabled: false });
+    const st = sim.getState();
+    st.physics.positionX = FINISH_POSITION_X - 10;
+    st.physics.speed = 20;
+    for (let i = 0; i < 30 * 10; i++) {
+      sim.applyAction({ throttle: 1 });
+      sim.tick(DT);
+      if (sim.getSnapshot().runState !== "running") break;
+    }
+    const s = sim.getSnapshot();
+    expect(s.runState).toBe("won");
+    expect(s.runEndReason).toBe("reached-finish");
+  });
+});
+
 describe("balance: buffed acceleration from a standstill", () => {
   /** Seconds of full-throttle acceleration from rest to `target` m/s on the
    *  flat lower-town section (x=1200, grade 0). Returns Infinity if not hit. */

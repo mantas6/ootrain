@@ -131,6 +131,13 @@ export interface SimState {
   /** Player money. */
   money: number;
 
+  /**
+   * Whether the advancing fire front and the run timer are active. When false
+   * the fire never advances, the timer never counts down, and neither can end
+   * the run (a relaxed / no-pressure mode chosen at the intro screen).
+   */
+  fireEnabled: boolean;
+
   /** Remaining countdown time, seconds. */
   timeRemainingS: number;
 
@@ -221,6 +228,13 @@ export interface GameSnapshot {
 
   /** Station proximity + available interactions. */
   station: StationProximity;
+
+  /**
+   * Whether the fire front and run timer are active. When false, consumers
+   * should hide the fire / timer UI and skip fire-proximity / low-time
+   * warnings — the run cannot be lost to fire or the clock.
+   */
+  fireEnabled: boolean;
 
   /** Fire-front world X position, metres. */
   fireFrontX: number;

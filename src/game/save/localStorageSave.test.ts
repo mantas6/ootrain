@@ -76,6 +76,29 @@ describe("save/load round-trip", () => {
     );
   });
 
+  it("round-trips the fireEnabled option through save/load", () => {
+    const storage = fakeStorage();
+    const sim = createGameSimulation({ seed: 7, fireEnabled: false });
+    for (let i = 0; i < 120; i++) sim.tick(DT);
+    expect(sim.getSnapshot().fireEnabled).toBe(false);
+
+    saveGame(sim.getState(), storage);
+    const sim2 = createGameSimulation({ fireEnabled: true });
+    sim2.setState(loadGame(storage)!);
+    // The restored run keeps its own (disabled) fire setting.
+    expect(sim2.getSnapshot().fireEnabled).toBe(false);
+  });
+
+  it("defaults legacy saves (no fireEnabled) to fire enabled", () => {
+    const sim = createGameSimulation({ seed: 1 });
+    const legacy = sim.getState();
+    // Simulate a pre-toggle save that lacks the field.
+    delete (legacy as Partial<typeof legacy>).fireEnabled;
+    const sim2 = createGameSimulation({ fireEnabled: false });
+    sim2.setState(legacy);
+    expect(sim2.getSnapshot().fireEnabled).toBe(true);
+  });
+
   it("serialize/deserialize handles invalid input gracefully", () => {
     expect(deserializeState("not json")).toBeNull();
     expect(deserializeState("{}")).toBeNull();

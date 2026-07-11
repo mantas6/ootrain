@@ -137,7 +137,11 @@ export class WorldView {
     this.updateBurnedTiles(snapshot);
 
     this.train.update(snapshot, dt);
-    this.fire.update(snapshot.fireFrontX, dt);
+    // No fire mechanic → hide the fire wall and leave terrain unburned.
+    this.fire.group.visible = snapshot.fireEnabled;
+    if (snapshot.fireEnabled) {
+      this.fire.update(snapshot.fireFrontX, dt);
+    }
 
     // Camera follows the loco head position at track elevation.
     this.train.getFollowTarget(this.followTarget);
@@ -215,6 +219,7 @@ export class WorldView {
 
   /** A chunk should be burned when its whole span is behind the fire front. */
   private shouldBurn(chunkIndex: number, snapshot: GameSnapshot): boolean {
+    if (!snapshot.fireEnabled) return false;
     const chunkEnd = (chunkIndex + 1) * CHUNK_SIZE;
     return chunkEnd <= snapshot.fireFrontX;
   }

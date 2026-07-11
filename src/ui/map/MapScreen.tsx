@@ -42,9 +42,11 @@ export function MapScreen({ snapshot, onClose }: MapScreenProps): ReactNode {
   const polygon = `0,${VIEW_H} ${polyline} ${VIEW_W},${VIEW_H}`;
 
   const trainX = clamp01(snapshot.progress) * VIEW_W;
-  const fireX =
-    clamp01(positionToStripFraction(snapshot.fireFrontX, ROUTE_LENGTH_M)) *
-    VIEW_W;
+  // Fire marker/burned shading only when the fire mechanic is active.
+  const fireX = snapshot.fireEnabled
+    ? clamp01(positionToStripFraction(snapshot.fireFrontX, ROUTE_LENGTH_M)) *
+      VIEW_W
+    : -1;
 
   const stationY = (y: number): number =>
     TOP_PAD + (1 - y) * (VIEW_H - TOP_PAD - BOTTOM_PAD);

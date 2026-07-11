@@ -35,18 +35,23 @@ import { AutosaveScheduler } from "./game/save/saveIntegration";
 interface GameSessionProps {
   /** Loaded save to resume, or null for a fresh run. */
   initialState: SimState | null;
+  /** Whether the fire chase + timer are active for a fresh run. */
+  fireEnabled: boolean;
   /** Start a brand-new run (remounts a fresh session). */
-  onNewRun: () => void;
+  onNewRun: (fireEnabled: boolean) => void;
 }
 
 export function GameSession({
   initialState,
+  fireEnabled,
   onNewRun,
 }: GameSessionProps): ReactNode {
   const containerRef = useRef<HTMLDivElement>(null);
 
   // --- Session singletons (created once for this mounted session) --------
-  const simRef = useRef(createGameSimulation({ seed: 7 }));
+  // A resumed run restores its own fireEnabled via setState; the config value
+  // seeds a fresh sim.
+  const simRef = useRef(createGameSimulation({ seed: 7, fireEnabled }));
   const sim = simRef.current;
 
   const audioRef = useRef<AudioEngine | null>(null);
@@ -231,8 +236,9 @@ export function GameSession({
 
   const restart = useCallback(() => {
     clearSave();
-    onNewRun();
-  }, [onNewRun]);
+    // Preserve this run's fire-chase choice across a restart.
+    onNewRun(sim.getSnapshot().fireEnabled);
+  }, [onNewRun, sim]);
 
   return (
     <>

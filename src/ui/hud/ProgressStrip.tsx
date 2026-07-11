@@ -43,8 +43,9 @@ export function ProgressStrip({ snapshot }: ProgressStripProps): ReactNode {
 
   const trainFrac = clamp01(snapshot.progress);
   const trainX = trainFrac * VIEW_W;
+  // Fire marker/burned shading only when the fire mechanic is active.
   const fireFrac = positionToStripFraction(snapshot.fireFrontX, ROUTE_LENGTH_M);
-  const fireX = clamp01(fireFrac) * VIEW_W;
+  const fireX = snapshot.fireEnabled ? clamp01(fireFrac) * VIEW_W : -1;
 
   return (
     <div className="pointer-events-none rounded-md border border-neutral-700/80 bg-neutral-900/85 px-3 py-2 shadow-lg backdrop-blur-sm">

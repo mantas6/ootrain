@@ -40,6 +40,7 @@ import {
   DEFAULT_SEED,
   ENGINE_IDLE_RPM,
   ENGINE_LOW_SPEED_STRAIN_FRACTION,
+  FIRE_START_X,
   RUN_TIME_LIMIT_S,
   START_TEMP_C,
   STARTING_MONEY,
@@ -101,6 +102,13 @@ export interface GameConfig {
   timeLimitS?: number;
   /** Starting locomotive id (defaults to loco-1). */
   locomotiveId?: string;
+  /**
+   * Whether the advancing fire front and the run timer are active (defaults to
+   * true). When false the fire never advances and the timer never counts down,
+   * so the run cannot be lost to fire or the clock — a relaxed mode toggled at
+   * the intro screen.
+   */
+  fireEnabled?: boolean;
 }
 
 /** The public simulation handle. */
@@ -145,11 +153,12 @@ export function createGameSimulation(config: GameConfig = {}): GameSimulation {
       litres: (getLocomotiveById(locomotiveId) ?? LOCO_1).fuelCapacity,
     },
     engine: { rpm: ENGINE_IDLE_RPM },
-    fire: { positionX: -600, elapsedS: 0 },
+    fire: { positionX: FIRE_START_X, elapsedS: 0 },
     locomotiveId,
     ownedUpgradeIds: [],
     cargo: [],
     money: config.startingMoney ?? STARTING_MONEY,
+    fireEnabled: config.fireEnabled ?? true,
     timeRemainingS: config.timeLimitS ?? RUN_TIME_LIMIT_S,
     input: { throttle: 0, brake: 0 },
     runState: "running",
@@ -489,13 +498,22 @@ export function createGameSimulation(config: GameConfig = {}): GameSimulation {
       slipWheelDamage(traction.state, dt),
     );
 
-    // --- Fire front ---
-    const fireResult = stepFire(state.fire.positionX, state.fire.elapsedS, dt);
-    state.fire.positionX = fireResult.positionX;
-    state.fire.elapsedS = fireResult.elapsedS;
+    // --- Fire front + timer (only when the fire/timeout mechanic is on) ---
+    // When disabled the fire never advances and the timer never counts down, so
+    // neither the fire-caught nor the time-out fail conditions can trigger. The
+    // fire step and timer decrement touch no RNG, so skipping them leaves the
+    // seeded PRNG stream untouched.
+    if (state.fireEnabled) {
+      const fireResult = stepFire(
+        state.fire.positionX,
+        state.fire.elapsedS,
+        dt,
+      );
+      state.fire.positionX = fireResult.positionX;
+      state.fire.elapsedS = fireResult.elapsedS;
 
-    // --- Timer ---
-    state.timeRemainingS = Math.max(0, state.timeRemainingS - dt);
+      state.timeRemainingS = Math.max(0, state.timeRemainingS - dt);
+    }
 
     // --- Win / fail resolution ---
     // Win: reached finish.
@@ -512,17 +530,19 @@ export function createGameSimulation(config: GameConfig = {}): GameSimulation {
       state.runEndReason = "engine-failure";
       return;
     }
-    // Fail: fire caught the train.
-    if (isCaughtByFire(state.physics.positionX, state.fire.positionX)) {
-      state.runState = "failed";
-      state.runEndReason = "fire-caught";
-      return;
-    }
-    // Fail: time out.
-    if (state.timeRemainingS <= 0) {
-      state.runState = "failed";
-      state.runEndReason = "time-out";
-      return;
+    // Fail: fire caught the train (only when the fire/timeout mechanic is on).
+    if (state.fireEnabled) {
+      if (isCaughtByFire(state.physics.positionX, state.fire.positionX)) {
+        state.runState = "failed";
+        state.runEndReason = "fire-caught";
+        return;
+      }
+      // Fail: time out.
+      if (state.timeRemainingS <= 0) {
+        state.runState = "failed";
+        state.runEndReason = "time-out";
+        return;
+      }
     }
   }
 
@@ -627,6 +647,7 @@ export function createGameSimulation(config: GameConfig = {}): GameSimulation {
       locomotiveId: state.locomotiveId,
       ownedUpgradeIds: [...state.ownedUpgradeIds],
       station: buildStationProximity(),
+      fireEnabled: state.fireEnabled,
       fireFrontX: state.fire.positionX,
       fireDistanceM: distanceToFire(
         state.physics.positionX,
@@ -645,6 +666,12 @@ export function createGameSimulation(config: GameConfig = {}): GameSimulation {
 
   function setState(next: SimState): void {
     Object.assign(state, next);
+    // Backward-compat: saves written before the fire toggle existed have no
+    // `fireEnabled`; default such runs to the original behaviour (fire on).
+    // Keyed off the incoming payload because `Object.assign` skips absent keys.
+    if (typeof next.fireEnabled !== "boolean") {
+      state.fireEnabled = true;
+    }
   }
 
   return { applyAction, tick, getSnapshot, getState, setState };
