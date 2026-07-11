@@ -1,0 +1,12 @@
+- there should be engine RPM stat based on throttle and that should make the sound pitch change (add rpm gauge)
+- smoke from exhaust should reflect throttle position
+- train should not start in air (beginning)
+- fuel is dis balanced (practically unlimited), you should need to refuel every other station or so
+- throttle and brake controls are overlapped by the map
+- brakes are very underpowered, train should accelerate faster
+- add more trees to forest areas
+- engine hot beeping is too intense
+- last section needs to look more hilly (in terms of scenery assets)
+- engine temperature as too much inertia
+- starting money should be less
+- fire should cover whole map tile
