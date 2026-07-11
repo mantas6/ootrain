@@ -24,6 +24,19 @@ export function formatTonnes(kg: number): string {
   return (kg / 1000).toFixed(1);
 }
 
+/**
+ * Formats a distance in metres for the HUD: under 1 km as whole metres
+ * (`"850 m"`), 1 km and above as kilometres with one decimal (`"1.2 km"`).
+ * Uses the magnitude, so callers pass `Math.abs(...)` for signed distances.
+ * Non-finite input (e.g. no station) renders as an em dash.
+ */
+export function formatDistance(metres: number): string {
+  if (!Number.isFinite(metres)) return "—";
+  const m = Math.max(0, metres);
+  if (m < 1000) return `${Math.round(m)} m`;
+  return `${(m / 1000).toFixed(1)} km`;
+}
+
 /** Formats money with a thousands separator and a leading `$`. */
 export function formatMoney(amount: number): string {
   return `$${Math.round(amount).toLocaleString("en-US")}`;

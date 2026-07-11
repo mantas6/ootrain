@@ -29,8 +29,10 @@ import { FuelGauge } from "./FuelGauge";
 import { WeightIndicator } from "./WeightIndicator";
 import { DamageIndicator } from "./DamageIndicator";
 import { MoneyDisplay } from "./MoneyDisplay";
+import { NextStationDisplay } from "./NextStationDisplay";
 import { ThrottleControls } from "./ThrottleControls";
 import { ProgressStrip } from "./ProgressStrip";
+import { ToastOverlay } from "./ToastOverlay";
 import { MuteButton } from "./MuteButton";
 import { Panel } from "../components/Panel";
 import { WarningOverlay } from "../warnings/WarningOverlay";
@@ -97,6 +99,8 @@ export function Hud({
             />
           </div>
         </Panel>
+        {/* Always-visible next-stop guidance (casual-friendly wayfinding). */}
+        <NextStationDisplay station={snapshot.station} />
       </div>
 
       {/* Top-right: stats + buttons */}
@@ -142,6 +146,9 @@ export function Hud({
       <div className="absolute top-3 left-1/2 -translate-x-1/2">
         <WarningOverlay snapshot={snapshot} />
       </div>
+
+      {/* Top-center (below warnings): transient positive-feedback toasts. */}
+      <ToastOverlay />
 
       {/* Bottom stack: interactive controls always sit above the full-width
           route strip, so the strip (route map) can never overlap the

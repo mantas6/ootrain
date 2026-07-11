@@ -14,12 +14,18 @@ interface PauseOverlayProps {
   onResume: () => void;
   /** Abandon and start a fresh run. */
   onRestart: () => void;
+  /** Current master volume, 0..1. */
+  volume: number;
+  /** Set the master volume (0..1). */
+  onVolumeChange: (value: number) => void;
 }
 
 /** Full-screen paused overlay with resume / restart + controls reminder. */
 export function PauseOverlay({
   onResume,
   onRestart,
+  volume,
+  onVolumeChange,
 }: PauseOverlayProps): ReactNode {
   return (
     <div className="pointer-events-auto absolute inset-0 z-30 flex items-center justify-center bg-black/80 backdrop-blur-sm">
@@ -36,6 +42,25 @@ export function PauseOverlay({
             Controls
           </h3>
           <ControlsList />
+        </div>
+
+        <div className="my-5 rounded-md border border-neutral-700/70 bg-neutral-950/60 p-4">
+          <label className="flex items-center gap-3">
+            <span className="font-mono text-[10px] font-semibold tracking-widest text-amber-400/90 uppercase">
+              Volume
+            </span>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={Math.round(volume * 100)}
+              onChange={(e) => onVolumeChange(Number(e.target.value) / 100)}
+              className="h-2 flex-1 cursor-pointer appearance-none rounded-full bg-neutral-800 text-amber-400 accent-current"
+            />
+            <span className="w-9 text-right font-mono text-xs font-bold tabular-nums text-neutral-100">
+              {Math.round(volume * 100)}%
+            </span>
+          </label>
         </div>
 
         <div className="flex flex-col gap-2">

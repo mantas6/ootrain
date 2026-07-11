@@ -31,6 +31,14 @@ import { EndScreen } from "./ui/hud/EndScreen";
 import { PauseOverlay } from "./ui/screens/PauseOverlay";
 import { saveGame, clearSave } from "./game/save/localStorageSave";
 import { AutosaveScheduler } from "./game/save/saveIntegration";
+import { loadVolume, saveVolume } from "./audio/volumePreference";
+
+/**
+ * Fixed sim-step duration, seconds. The GameLoop ticks at 60 Hz (its default
+ * simDt) and reads controls once per step, so the throttle ramp advances by
+ * this dt each read.
+ */
+const SIM_STEP_S = 1 / 60;
 
 interface GameSessionProps {
   /** Loaded save to resume, or null for a fresh run. */
@@ -71,6 +79,8 @@ export function GameSession({
     brake: number;
   }>({ throttle: 0, brake: 0 });
   const [muted, setMuted] = useState(false);
+  // Master volume 0..1, seeded from the persisted preference (localStorage).
+  const [volume, setVolumeState] = useState(() => loadVolume());
   const [paused, setPaused] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
   // Bumped whenever the sim's runState may have changed, to refresh overlays.
@@ -116,6 +126,18 @@ export function GameSession({
   const toggleMute = useCallback(() => {
     setMuted(audio.toggleMuted());
   }, [audio]);
+
+  // Apply the (persisted) master volume to the audio engine on mount and on any
+  // change. setVolume before unlock just stores it; unlock applies it to the
+  // master gain, so the chosen volume is honoured from the first sound.
+  useEffect(() => {
+    audio.setVolume(volume);
+  }, [audio, volume]);
+
+  const onVolumeChange = useCallback((v: number) => {
+    setVolumeState(v);
+    saveVolume(v);
+  }, []);
 
   // --- Control surface wiring (keyboard + on-screen sliders) -------------
   const onThrottle = useCallback((v: number) => {
@@ -165,6 +187,10 @@ export function GameSession({
       sim,
       controls: {
         getState: () => {
+          // Advance the hold-to-accelerate ramp once per sim step (fixed 60 Hz
+          // step, so dt = 1/60). Holding W/↑ or S/↓ sweeps throttle smoothly;
+          // onChange keeps the on-screen sliders in sync.
+          controller.update(SIM_STEP_S);
           const s = controller.getState();
           return { throttle: s.throttle, brake: s.brake, reverse: s.reverse };
         },
@@ -271,7 +297,12 @@ export function GameSession({
         />
 
         {paused && !ended && (
-          <PauseOverlay onResume={resume} onRestart={restart} />
+          <PauseOverlay
+            onResume={resume}
+            onRestart={restart}
+            volume={volume}
+            onVolumeChange={onVolumeChange}
+          />
         )}
 
         {ended && <EndScreen snapshot={snapshot} onRestart={restart} />}

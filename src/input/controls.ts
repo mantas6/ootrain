@@ -6,20 +6,28 @@
  *
  *   - {@link ControlState} + {@link reduceControl} — a *pure* reducer that
  *     folds discrete key events into a persistent, notch-style control state.
- *     Throttle is an incremental 0..1 value (W/S nudge it a notch per event and
- *     while held), brake is a hold, and reverse/interact/map/pause/mute are
- *     edge-triggered toggles/pulses. No timers, no globals — deterministic.
+ *     A fresh W/S press nudges throttle a single notch (fine control); holding
+ *     the key latches a ramp direction so throttle sweeps continuously via
+ *     {@link rampHeldThrottle} (see below). Brake is a hold, and
+ *     reverse/interact/map/pause/mute are edge-triggered toggles/pulses. No
+ *     timers, no globals — deterministic.
+ *   - {@link rampHeldThrottle} — a *pure*, time-based helper that advances the
+ *     throttle toward its limit while a throttle key is held, given `dt`. This
+ *     is what makes holding W/↑ feel smooth (full 0→1 sweep in ~1.7s) instead of
+ *     relying on sluggish OS key-repeat. Kept pure so it is unit-tested with a
+ *     fixed `dt`.
  *   - {@link KeyboardController} — a thin class that attaches `keydown`/`keyup`
- *     listeners, feeds them through the reducer, and (crucially) shares the same
- *     mutable control state the on-screen sliders read/write, so keyboard and UI
- *     stay a single source of truth.
+ *     listeners, feeds them through the reducer, exposes {@link
+ *     KeyboardController.update} to apply the held-key ramp each frame, and
+ *     (crucially) shares the same mutable control state the on-screen sliders
+ *     read/write, so keyboard and UI stay a single source of truth.
  *
  * Key map (per docs/02-gameplay.md "Controls", extended):
  *
  *   | Key            | Action                                    |
  *   | -------------- | ----------------------------------------- |
- *   | W / ArrowUp    | Increase throttle (notch up)              |
- *   | S / ArrowDown  | Decrease throttle (notch down)            |
+ *   | W / ArrowUp    | Increase throttle (tap = notch, hold ramp)|
+ *   | S / ArrowDown  | Decrease throttle (tap = notch, hold ramp)|
  *   | Space          | Brake (hold)                              |
  *   | R              | Toggle reverse (edge)                     |
  *   | E              | Interact with station (pulse)             |
@@ -30,8 +38,13 @@
  * The on-screen mute button remains as an alternative to N.
  */
 
-/** How much one throttle notch changes the 0..1 throttle value. */
+/** How much one throttle notch changes the 0..1 throttle value (single tap). */
 export const THROTTLE_NOTCH = 0.05;
+/**
+ * How fast a *held* throttle key sweeps the 0..1 throttle, per second. At 0.6/s
+ * a full 0→1 sweep takes ~1.7s of holding — mainstream "hold to accelerate".
+ */
+export const THROTTLE_RAMP_PER_S = 0.6;
 /** Brake level applied while the brake key is held. */
 export const BRAKE_KEY_LEVEL = 1;
 
@@ -42,12 +55,19 @@ export const BRAKE_KEY_LEVEL = 1;
  * cleared) by the loop each frame.
  */
 export interface ControlState {
-  /** Persistent throttle demand, 0..1 (notch-adjusted). */
+  /** Persistent throttle demand, 0..1 (notch-adjusted + held-key ramp). */
   throttle: number;
   /** Persistent brake demand, 0..1 (held keys / slider). */
   brake: number;
   /** Whether reverse is currently selected. */
   reverse: boolean;
+  /**
+   * Whether the throttle-up key (W / ↑) is currently held. Latches a positive
+   * ramp direction consumed by {@link rampHeldThrottle} each frame.
+   */
+  throttleUpHeld: boolean;
+  /** Whether the throttle-down key (S / ↓) is currently held (negative ramp). */
+  throttleDownHeld: boolean;
   /** One-shot intents raised by an edge and cleared once handled. */
   edges: ControlEdges;
 }
@@ -82,6 +102,8 @@ export function createControlState(): ControlState {
     throttle: 0,
     brake: 0,
     reverse: false,
+    throttleUpHeld: false,
+    throttleDownHeld: false,
     edges: createEdges(),
   };
 }
@@ -151,8 +173,14 @@ function clamp01(v: number): number {
 
 /**
  * Pure reducer: folds a single key event into the control state, returning a
- * new state (never mutates the input). Auto-repeat `keydown`s keep nudging the
- * throttle (so holding W ramps up) but do *not* re-fire edge toggles.
+ * new state (never mutates the input).
+ *
+ * Throttle keys are hold-to-accelerate: a *fresh* press nudges a single notch
+ * (fine control for tapping) and latches the ramp direction; the continuous
+ * sweep while held is applied separately by {@link rampHeldThrottle} on a
+ * per-frame timer. Auto-repeat `keydown`s only keep the held flag set — they do
+ * *not* nudge again (the smooth ramp replaces sluggish OS key-repeat) and never
+ * re-fire edge toggles.
  */
 export function reduceControl(
   state: ControlState,
@@ -166,12 +194,31 @@ export function reduceControl(
 
   switch (control) {
     case "throttleUp": {
-      if (!isDown) return state;
-      return { ...state, throttle: clamp01(state.throttle + THROTTLE_NOTCH) };
+      if (!isDown) return { ...state, throttleUpHeld: false };
+      // Auto-repeat: keep the ramp latched, don't re-nudge.
+      if (isRepeat) {
+        return state.throttleUpHeld
+          ? state
+          : { ...state, throttleUpHeld: true };
+      }
+      return {
+        ...state,
+        throttleUpHeld: true,
+        throttle: clamp01(state.throttle + THROTTLE_NOTCH),
+      };
     }
     case "throttleDown": {
-      if (!isDown) return state;
-      return { ...state, throttle: clamp01(state.throttle - THROTTLE_NOTCH) };
+      if (!isDown) return { ...state, throttleDownHeld: false };
+      if (isRepeat) {
+        return state.throttleDownHeld
+          ? state
+          : { ...state, throttleDownHeld: true };
+      }
+      return {
+        ...state,
+        throttleDownHeld: true,
+        throttle: clamp01(state.throttle - THROTTLE_NOTCH),
+      };
     }
     case "brake": {
       // Hold-to-brake: down applies, up releases.
@@ -202,6 +249,28 @@ export function reduceControl(
       return { ...state, edges: { ...state.edges, toggleMute: true } };
     }
   }
+}
+
+/**
+ * Pure, time-based throttle ramp: advances the throttle toward its limit while
+ * a throttle key is held, by {@link THROTTLE_RAMP_PER_S} × `dtSeconds`. If no
+ * throttle key is held (or both are, cancelling out), the state is returned
+ * unchanged (same reference), so callers can cheaply skip re-notifying the UI.
+ *
+ * Deterministic: no clocks, no globals — pass a fixed `dt` in tests.
+ */
+export function rampHeldThrottle(
+  state: ControlState,
+  dtSeconds: number,
+): ControlState {
+  const direction =
+    (state.throttleUpHeld ? 1 : 0) - (state.throttleDownHeld ? 1 : 0);
+  if (direction === 0 || dtSeconds <= 0) return state;
+  const next = clamp01(
+    state.throttle + direction * THROTTLE_RAMP_PER_S * dtSeconds,
+  );
+  if (next === state.throttle) return state;
+  return { ...state, throttle: next };
 }
 
 /** Keys whose default browser behaviour we suppress while playing. */
@@ -278,6 +347,19 @@ export class KeyboardController {
   /** Returns the live control state (read each loop step). */
   getState(): ControlState {
     return this.state;
+  }
+
+  /**
+   * Applies the held-key throttle ramp for an elapsed `dtSeconds`. Call once per
+   * frame/step from the loop; notifies the UI only when the value actually
+   * changes (i.e. while W/S is held), keeping the on-screen sliders in sync.
+   */
+  update(dtSeconds: number): void {
+    const next = rampHeldThrottle(this.state, dtSeconds);
+    if (next !== this.state) {
+      this.state = next;
+      this.onChange?.(this.state);
+    }
   }
 
   /** Sets the throttle directly (from the on-screen slider). */

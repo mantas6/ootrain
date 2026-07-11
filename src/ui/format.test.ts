@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import {
   clamp,
   clamp01,
+  formatDistance,
   formatMoney,
   formatSpeedKmh,
   formatTime,
@@ -45,6 +46,30 @@ describe("formatTonnes", () => {
   it("formats kilograms as one-decimal tonnes", () => {
     expect(formatTonnes(90_000)).toBe("90.0");
     expect(formatTonnes(12_500)).toBe("12.5");
+  });
+});
+
+describe("formatDistance", () => {
+  it("formats under 1 km as whole metres", () => {
+    expect(formatDistance(0)).toBe("0 m");
+    expect(formatDistance(850)).toBe("850 m");
+    expect(formatDistance(850.6)).toBe("851 m");
+    expect(formatDistance(999)).toBe("999 m");
+  });
+
+  it("formats 1 km and above as one-decimal kilometres", () => {
+    expect(formatDistance(1000)).toBe("1.0 km");
+    expect(formatDistance(1234)).toBe("1.2 km");
+    expect(formatDistance(20_500)).toBe("20.5 km");
+  });
+
+  it("clamps negatives to zero (callers pass a magnitude)", () => {
+    expect(formatDistance(-5)).toBe("0 m");
+  });
+
+  it("renders non-finite input as an em dash", () => {
+    expect(formatDistance(Infinity)).toBe("—");
+    expect(formatDistance(NaN)).toBe("—");
   });
 });
 
