@@ -17,10 +17,25 @@
  */
 
 import { MathUtils, PerspectiveCamera, Spherical, Vector3 } from "three";
+import {
+  framingDistance,
+  referenceExtent,
+  type FramingExtent,
+} from "./cameraFraming";
+
+/** Vertical field of view, degrees. Shared by the camera and framing math. */
+const FOV_DEGREES = 48;
+/**
+ * Aspect the `distance` default is tuned for (desktop 16:9). The visible world
+ * extent at this aspect defines the framing target: narrower viewports zoom out
+ * to keep that extent visible, wider ones keep the same (vertically limited)
+ * distance, so the tuned desktop look is preserved. See {@link cameraFraming}.
+ */
+const REFERENCE_ASPECT = 16 / 9;
 
 /** Tuning knobs for the camera rig. */
 export interface CameraConfig {
-  /** Distance from focus at default zoom, metres. */
+  /** Distance from focus at default zoom (at the reference aspect), metres. */
   distance?: number;
   /** Min / max zoom distance, metres. */
   minDistance?: number;
@@ -57,6 +72,15 @@ export class CameraRig {
   /** Orbit orientation + distance around the focus. */
   private readonly orbit = new Spherical(DEFAULTS.distance, 1.32, Math.PI / 2);
   private targetDistance = DEFAULTS.distance;
+
+  /**
+   * World extent that must stay framed (derived from the desktop framing) and
+   * the aspect-aware base distance that keeps it visible at the current aspect.
+   */
+  private readonly framingTarget: FramingExtent;
+  private baseDistance: number;
+  /** User zoom as a multiplier of {@link baseDistance} (1 = default framing). */
+  private zoom = 1;
 
   // Pointer-drag state.
   private dragging = false;
@@ -96,19 +120,35 @@ export class CameraRig {
   private readonly onWheel = (e: WheelEvent): void => {
     e.preventDefault();
     const factor = Math.exp(e.deltaY * 0.001);
-    this.targetDistance = MathUtils.clamp(
+    // Clamp on the resulting absolute distance, then back out the zoom
+    // multiplier so it survives aspect changes (resize / device rotation).
+    const desired = MathUtils.clamp(
       this.targetDistance * factor,
       this.cfg.minDistance,
       this.cfg.maxDistance,
     );
+    this.targetDistance = desired;
+    this.zoom = desired / this.baseDistance;
   };
 
   constructor(aspect = 1, config: CameraConfig = {}) {
     this.cfg = { ...DEFAULTS, ...config };
-    this.orbit.radius = this.cfg.distance;
-    this.targetDistance = this.cfg.distance;
-    this.camera = new PerspectiveCamera(48, aspect, 0.5, 5000);
-    this.camera.position.set(0, 20, this.cfg.distance);
+    // The desktop framing at the reference aspect defines the extent to keep
+    // visible; the base distance fits that extent at the actual aspect.
+    this.framingTarget = referenceExtent(
+      this.cfg.distance,
+      FOV_DEGREES,
+      REFERENCE_ASPECT,
+    );
+    this.baseDistance = framingDistance(
+      aspect,
+      FOV_DEGREES,
+      this.framingTarget,
+    );
+    this.orbit.radius = this.baseDistance;
+    this.targetDistance = this.baseDistance;
+    this.camera = new PerspectiveCamera(FOV_DEGREES, aspect, 0.5, 5000);
+    this.camera.position.set(0, 20, this.baseDistance);
   }
 
   /** Attaches pointer + wheel handlers to a DOM element (idempotent-ish). */
@@ -134,10 +174,25 @@ export class CameraRig {
     this.element = null;
   }
 
-  /** Updates the camera aspect ratio for a new viewport size. */
+  /**
+   * Updates the camera aspect ratio for a new viewport size and re-fits the
+   * framing distance so the train stays framed at squarer/portrait aspects
+   * (e.g. iPad). The user's zoom (as a fraction of the default framing) is
+   * preserved across the change.
+   */
   setAspect(aspect: number): void {
     this.camera.aspect = aspect;
     this.camera.updateProjectionMatrix();
+    this.baseDistance = framingDistance(
+      aspect,
+      FOV_DEGREES,
+      this.framingTarget,
+    );
+    this.targetDistance = MathUtils.clamp(
+      this.baseDistance * this.zoom,
+      this.cfg.minDistance,
+      this.cfg.maxDistance,
+    );
   }
 
   /**
